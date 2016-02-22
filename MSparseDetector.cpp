@@ -221,11 +221,27 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
     const vector<string>& curr_words = words[i];
     int wordnumber = curr_words.size();
     for (int j = 0; j < wordnumber; j++) {
-      feat = "F1U=" + curr_words[j];
-      features.push_back(feat);
-      string prevword = j - 1 >= 0 ? curr_words[j - 1] : nullkey;
-      feat = "F2B=" + prevword + seperateKey + curr_words[j];
-      features.push_back(feat);
+      if (i == 0) {
+        feat = "CTBF1U=" + curr_words[j];
+        features.push_back(feat);
+        string prevword = j - 1 >= 0 ? curr_words[j - 1] : nullkey;
+        feat = "CTBF2B=" + prevword + seperateKey + curr_words[j];
+        features.push_back(feat);
+      } else if (i == 1) {
+        feat = "PKUF1U=" + curr_words[j];
+        features.push_back(feat);
+        string prevword = j - 1 >= 0 ? curr_words[j - 1] : nullkey;
+        feat = "PKUF2B=" + prevword + seperateKey + curr_words[j];
+        features.push_back(feat);
+
+      } else if (i == 2) {
+        feat = "CHARF1U=" + curr_words[j];
+        features.push_back(feat);
+        string prevword = j - 1 >= 0 ? curr_words[j - 1] : nullkey;
+        feat = "CHARF2B=" + prevword + seperateKey + curr_words[j];
+        features.push_back(feat);
+
+      }
 //    string prev2word = j - 2 >= 0 ? lastWords[j - 2] : nullkey;
 //    feat = "F3T=" + prev2word + seperateKey + prevword + seperateKey + lastWords[j];
 //    features.push_back(feat);
