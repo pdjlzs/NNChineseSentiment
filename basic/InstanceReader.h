@@ -46,26 +46,38 @@ public:
         m_instance.chars[0].push_back(curChars);
       }
     } else {
-      m_instance.allocate(2);
+      m_instance.allocate(3);
       for (int i = 0; i < length; ++i) {
         vector<string> vecInfo;
         split_bychar(vecLine[i], vecInfo, ' ');
         int veclength = vecInfo.size();
         if (i == length - 1) {
           m_instance.label = vecInfo[0];
-          for (int j = 1; j < veclength; j++) {
-            m_instance.words[1].push_back(vecInfo[j]);
-            vector<string> curChars;
-            getCharactersFromUTF8String(vecInfo[j], curChars);
-            m_instance.chars[1].push_back(curChars);
-          }
         } else {
           for (int j = 1; j < veclength; j++) {
-            m_instance.words[0].push_back(vecInfo[j]);
-            vector<string> curChars;
-            getCharactersFromUTF8String(vecInfo[j], curChars);
-            m_instance.chars[0].push_back(curChars);
+            if (vecInfo[0] == "ctb") {
+              m_instance.words[0].push_back(vecInfo[j]);
+              vector<string> curChars;
+              getCharactersFromUTF8String(vecInfo[j], curChars);
+              m_instance.chars[0].push_back(curChars);
+
+            } else if (vecInfo[0] == "pku") {
+              m_instance.words[1].push_back(vecInfo[j]);
+              vector<string> curChars;
+              getCharactersFromUTF8String(vecInfo[j], curChars);
+              m_instance.chars[1].push_back(curChars);
+
+            } else if (vecInfo[0] == "cha") {
+              m_instance.words[2].push_back(vecInfo[j]);
+              vector<string> curChars;
+              getCharactersFromUTF8String(vecInfo[j], curChars);
+              m_instance.chars[2].push_back(curChars);
+
+            } else {
+              std::cerr << "input format error: No segment style lable found" << std::endl;
+            }
           }
+
         }
 
       }
