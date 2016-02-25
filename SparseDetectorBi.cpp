@@ -5,9 +5,8 @@
  *      Author: mszhang
  */
 
-#include "SparseDetector.h"
-
 #include "Argument_helper.h"
+#include "SparseDetector.h"
 
 Labeler::Labeler() {
   // TODO Auto-generated constructor stub
@@ -42,7 +41,7 @@ int Labeler::createAlphabet(const vector<Instance>& vecInsts) {
     for (int i = 0; i < curInstSize; ++i) {
       int curWordSize = words[i].size();
       for (int j = 0; j < curWordSize; j++) {
-        string curword = normalize_to_lowerwithdigit(words[i][j]);
+        string curword = words[i][j];
         word_stat[curword]++;
         int curWordLength = chars[i][j].size();
         for (int k = 0; k < curWordLength; k++)
@@ -212,30 +211,20 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
   features.clear();
   const vector<vector<string> >& words = pInstance->words;
   int seq_size = words.size();
-  if (seq_size > 2) {
-    cout << "error input, two or more histories..." << endl;
+  if (seq_size > 3) {
+    cout << "error input, for or more segment styles..." << endl;
   }
 
   string feat = "";
-  const vector<string> lastWords = words[seq_size - 1];
-  int wordnumber = lastWords.size();
-  for (int i = 0; i < wordnumber; i++) {
-    feat = "F1U=" + lastWords[i];
-    features.push_back(feat);
-    string prevword = i - 1 >= 0 ? lastWords[i - 1] : nullkey;
-    feat = "F2B=" + prevword + seperateKey + lastWords[i];
-    features.push_back(feat);
-//    string prev2word = i - 2 >= 0 ? lastWords[i - 2] : nullkey;
-//    feat = "F3T=" + prev2word + seperateKey + prevword + seperateKey + lastWords[i];
-//    features.push_back(feat);
-  }
-
-  if (m_linearfeat > 1 && seq_size == 2) {
-    vector<string> lastWords = words[seq_size - 2];
-    wordnumber = lastWords.size();
-    for (int i = 0; i < wordnumber; i++) {
-      feat = "F4U=" + lastWords[i];
-      features.push_back(feat);
+  for (int i = 0; i < seq_size; i++) {
+    const vector<string>& curr_words = words[i];
+    int wordnumber = curr_words.size();
+    for (int j = 0; j < wordnumber; j++) {
+        feat = "F1U=" + curr_words[j];
+        features.push_back(feat);
+        string prevword = j - 1 >= 0 ? curr_words[j - 1] : nullkey;
+        feat = "F2B=" + prevword + seperateKey + curr_words[j];
+        features.push_back(feat);
     }
   }
 
@@ -341,11 +330,9 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
 
   m_options.showOptions();
   m_linearfeat = m_options.linearfeatCat;
-  if(m_linearfeat <= 0)
-  {
+  if (m_linearfeat <= 0) {
     m_linearfeat = 2;
   }
-
 
   vector<Instance> trainInsts, devInsts, testInsts;
   static vector<Instance> decodeInstResults;
@@ -406,7 +393,6 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
 
   m_classifier.init(m_labelAlphabet.size(), m_featAlphabet.size());
   m_classifier.setDropValue(m_options.dropProb);
-
 
   vector<Example> trainExamples, devExamples, testExamples;
   initialExamples(trainInsts, trainExamples);
@@ -478,7 +464,7 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
         }
         int curUpdateIter = iter * m_options.verboseIter + updateIter;
         cost += m_classifier.process(subExamples, curUpdateIter);
-       //m_classifier.checkgrads(subExamples, curUpdateIter);
+        //m_classifier.checkgrads(subExamples, curUpdateIter);
         eval.overall_label_count += m_classifier._eval.overall_label_count;
         eval.correct_label_count += m_classifier._eval.correct_label_count;
 

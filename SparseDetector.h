@@ -16,7 +16,7 @@
 #include "Pipe.h"
 #include "Utf.h"
 #include "N3L.h"
-#include "basic/SparseClassifier.h"
+#include "basic/MSparseClassifier.h"
 
 
 using namespace nr;
