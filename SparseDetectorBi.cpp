@@ -31,21 +31,24 @@ int Labeler::createAlphabet(const vector<Instance>& vecInsts) {
   for (numInstance = 0; numInstance < vecInsts.size(); numInstance++) {
     const Instance *pInstance = &vecInsts[numInstance];
 
-    const vector<vector<string> > &words = pInstance->words;
-    const vector<vector<vector<string> > > &chars = pInstance->chars;
+    const vector<vector<vector<string> > > &words = pInstance->words;
+    //const vector<vector<vector<string> > > &chars = pInstance->chars;
 
     const string &label = pInstance->label;
     labelId = m_labelAlphabet.from_string(label);
 
-    int curInstSize = words.size();
-    for (int i = 0; i < curInstSize; ++i) {
-      int curWordSize = words[i].size();
-      for (int j = 0; j < curWordSize; j++) {
-        string curword = words[i][j];
-        word_stat[curword]++;
-        int curWordLength = chars[i][j].size();
-        for (int k = 0; k < curWordLength; k++)
-          char_stat[chars[i][j][k]]++;
+    int segStyleSize = words.size();
+    for (int i = 0; i < segStyleSize; ++i) {
+      int curInstSize = words[i].size();
+      for (int j = 0; j < curInstSize; ++j) {
+        int curWordSize = words[i][j].size();
+        for (int k = 0; k < curWordSize; k++) {
+          string curword = words[i][j][k];
+          word_stat[curword]++;
+          //int curWordLength = chars[i][j].size();
+          //for (int k = 0; k < curWordLength; k++)
+          //char_stat[chars[i][j][k]]++;
+        }
       }
     }
 
@@ -130,14 +133,17 @@ int Labeler::addTestWordAlpha(const vector<Instance>& vecInsts) {
   for (numInstance = 0; numInstance < vecInsts.size(); numInstance++) {
     const Instance *pInstance = &vecInsts[numInstance];
 
-    const vector<vector<string> > &words = pInstance->words;
+    const vector<vector<vector<string> > > &words = pInstance->words;
 
-    int curInstSize = words.size();
-    for (int i = 0; i < curInstSize; ++i) {
-      int curWordSize = words[i].size();
-      for (int j = 0; j < curWordSize; j++) {
-        string curword = normalize_to_lowerwithdigit(words[i][j]);
-        word_stat[curword]++;
+    int segStyleSize = words.size();
+    for (int i = 0; i < segStyleSize; ++i) {
+      int curInstSize = words[i].size();
+      for (int j = 0; j < curInstSize; ++j) {
+        int curWordSize = words[i][j].size();
+        for (int k = 0; k < curWordSize; k++) {
+          //string curword = normalize_to_lowerwithdigit(words[i][j]);
+          word_stat[words[i][j][k]]++;
+        }
       }
     }
 
@@ -209,22 +215,26 @@ int Labeler::addTestCharAlpha(const vector<Instance>& vecInsts) {
 
 void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pInstance) {
   features.clear();
-  const vector<vector<string> >& words = pInstance->words;
-  int seq_size = words.size();
-  if (seq_size > 3) {
+  const vector<vector<vector<string> > > &words = pInstance->words;
+  int segStyleSize = words.size();
+  if (segStyleSize > 3) {
     cout << "error input, for or more segment styles..." << endl;
   }
 
   string feat = "";
-  for (int i = 0; i < seq_size; i++) {
-    const vector<string>& curr_words = words[i];
-    int wordnumber = curr_words.size();
-    for (int j = 0; j < wordnumber; j++) {
-        feat = "F1U=" + curr_words[j];
+  for (int i = 0; i < segStyleSize; i++) {
+    int curInstSize = words[i].size();
+    for (int j = 0; j < curInstSize; ++j) {
+      int curWordSize = words[i][j].size();
+      const vector<string>& curr_words = words[i][j];
+      for (int k = 0; k < curWordSize; k++) {
+        feat = "F1U=" + curr_words[k];
         features.push_back(feat);
-        string prevword = j - 1 >= 0 ? curr_words[j - 1] : nullkey;
-        feat = "F2B=" + prevword + seperateKey + curr_words[j];
+        string prevword = k - 1 >= 0 ? curr_words[k - 1] : nullkey;
+        feat = "F2B=" + prevword + seperateKey + curr_words[k];
         features.push_back(feat);
+
+      }
     }
   }
 
@@ -233,8 +243,8 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
 void Labeler::extractFeature(Feature& feat, const Instance* pInstance, int idx) {
   feat.clear();
 
-  const vector<vector<string> >& words = pInstance->words;
-  const vector<vector<vector<string> > > &chars = pInstance->chars;
+  const vector<vector<vector<string> > > &words = pInstance->words;
+  //const vector<vector<vector<string> > > &chars = pInstance->chars;
 
   static vector<int> curChars;
 
@@ -243,38 +253,41 @@ void Labeler::extractFeature(Feature& feat, const Instance* pInstance, int idx) 
   if (idx < 0 || idx >= sentsize)
     return;
 
-  int wordnumber = words[idx].size();
+  int curInstSize = words[idx].size();
 
   int unknownWordId = m_wordAlphabet.from_string(unknownkey);
   int unknownCharId = m_charAlphabet.from_string(unknownkey);
 
-  for (int i = 0; i < wordnumber; i++) {
-    string curWord = normalize_to_lowerwithdigit(words[idx][i]);
-    int curWordId = m_wordAlphabet.from_string(curWord);
-    if (curWordId >= 0)
-      feat.words.push_back(curWordId);
-    else
-      feat.words.push_back(unknownWordId);
-
-    int wordlength = chars[idx][i].size();
-    curChars.clear();
-    for (int j = 0; j < wordlength; j++) {
-      string curChar = chars[idx][i][j];
-      int curCharId = m_charAlphabet.from_string(curChar);
-      if (curCharId >= 0)
-        curChars.push_back(curCharId);
+  for (int j = 0; j < curInstSize; ++j) {
+    int wordnumber = words[idx][j].size();
+    for (int k = 0; k < wordnumber; k++) {
+      string curWord = words[idx][j][k];
+      int curWordId = m_wordAlphabet.from_string(curWord);
+      if (curWordId >= 0)
+        feat.words.push_back(curWordId);
       else
-        curChars.push_back(unknownCharId);
+        feat.words.push_back(unknownWordId);
+      /*
+       int wordlength = chars[idx][i].size();
+       curChars.clear();
+       for (int j = 0; j < wordlength; j++) {
+       string curChar = chars[idx][i][j];
+       int curCharId = m_charAlphabet.from_string(curChar);
+       if (curCharId >= 0)
+       curChars.push_back(curCharId);
+       else
+       curChars.push_back(unknownCharId);
+       }
+       feat.chars.push_back(curChars);*/
     }
-    feat.chars.push_back(curChars);
   }
 }
 
 void Labeler::convert2Example(const Instance* pInstance, Example& exam) {
   exam.clear();
   const string &label = pInstance->label;
-  const vector<vector<string> > &words = pInstance->words;
-  const vector<vector<vector<string> > > &chars = pInstance->chars;
+  const vector<vector<vector<string> > > &words = pInstance->words;
+  //const vector<vector<vector<string> > > &chars = pInstance->chars;
 
   int numLabels = m_labelAlphabet.size();
   for (int j = 0; j < numLabels; ++j) {
@@ -285,8 +298,8 @@ void Labeler::convert2Example(const Instance* pInstance, Example& exam) {
       exam.m_labels.push_back(0);
   }
 
-  int curInstSize = words.size();
-  for (int i = 0; i < curInstSize; ++i) {
+  int segStyleSize = words.size();
+  for (int i = 0; i < segStyleSize; ++i) {
     Feature feat;
     extractFeature(feat, pInstance, i);
     exam.m_features.push_back(feat);
@@ -334,6 +347,7 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
     m_linearfeat = 2;
   }
 
+
   vector<Instance> trainInsts, devInsts, testInsts;
   static vector<Instance> decodeInstResults;
   static Instance curDecodeInst;
@@ -351,6 +365,7 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
     m_pipe.readInstances(m_options.testFiles[idx], otherInsts[idx], m_options.maxInstance);
   }
 
+  m_segStylelabelAlphabet = m_pipe.getSegStyleAlphabet();
   //std::cout << "Training example number: " << trainInsts.size() << std::endl;
   //std::cout << "Dev example number: " << trainInsts.size() << std::endl;
   //std::cout << "Test example number: " << trainInsts.size() << std::endl;

@@ -32,6 +32,7 @@ public:
     }
 
     int length = vecLine.size();
+    int labelsize = m_segStylelabelAlphabet.size();
 
     if (length == 1) {
       m_instance.allocate(1);
@@ -39,14 +40,16 @@ public:
       split_bychar(vecLine[0], vecInfo, ' ');
       int veclength = vecInfo.size();
       m_instance.label = vecInfo[0];
+      vector<string> sent;
       for (int j = 1; j < veclength; j++) {
-        m_instance.words[0].push_back(vecInfo[j]);
-        vector<string> curChars;
-        getCharactersFromUTF8String(vecInfo[j], curChars);
-        m_instance.chars[0].push_back(curChars);
+        sent.push_back(vecInfo[j]);
+        //vector<string> curChars;
+        //getCharactersFromUTF8String(vecInfo[j], curChars);
+        //m_instance.chars[0].push_back(curChars);
       }
+      m_instance.words[0].push_back(sent);
     } else {
-      m_instance.allocate(3);
+      m_instance.allocate(labelsize);
       for (int i = 0; i < length; ++i) {
         vector<string> vecInfo;
         split_bychar(vecLine[i], vecInfo, ' ');
@@ -54,29 +57,16 @@ public:
         if (i == length - 1) {
           m_instance.label = vecInfo[0];
         } else {
+          int labelId = m_segStylelabelAlphabet.from_string(vecInfo[0]);
+          vector<string> nbestsent;
           for (int j = 1; j < veclength; j++) {
-            if (vecInfo[0] == "ctb") {
-              m_instance.words[0].push_back(vecInfo[j]);
-              vector<string> curChars;
-              getCharactersFromUTF8String(vecInfo[j], curChars);
-              m_instance.chars[0].push_back(curChars);
+            nbestsent.push_back(vecInfo[j]);
+            //vector<string> curChars;
+            //getCharactersFromUTF8String(vecInfo[j], curChars);
+            //m_instance.chars[labelId].push_back(curChars);
 
-            } else if (vecInfo[0] == "pku") {
-              m_instance.words[1].push_back(vecInfo[j]);
-              vector<string> curChars;
-              getCharactersFromUTF8String(vecInfo[j], curChars);
-              m_instance.chars[1].push_back(curChars);
-
-            } else if (vecInfo[0] == "cha") {
-              m_instance.words[2].push_back(vecInfo[j]);
-              vector<string> curChars;
-              getCharactersFromUTF8String(vecInfo[j], curChars);
-              m_instance.chars[2].push_back(curChars);
-
-            } else {
-              std::cerr << "input format error: No segment style lable found" << std::endl;
-            }
           }
+          m_instance.words[labelId].push_back(nbestsent);
 
         }
 
@@ -85,6 +75,7 @@ public:
 
     return &m_instance;
   }
+public:
 };
 
 #endif

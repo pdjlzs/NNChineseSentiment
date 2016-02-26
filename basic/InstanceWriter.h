@@ -6,34 +6,34 @@
 
 using namespace std;
 /*
-	this class writes conll-format result (no srl-info).
-*/
-class InstanceWriter : public Writer
-{
+ this class writes conll-format result (no srl-info).
+ */
+class InstanceWriter: public Writer {
 public:
-	InstanceWriter(){}
-	~InstanceWriter(){}
-	int write(const Instance *pInstance)
-	{
-	  if (!m_outf.is_open())
-	    return -1;
+  InstanceWriter() {
+  }
+  ~InstanceWriter() {
+  }
+  int write(const Instance *pInstance) {
+    if (!m_outf.is_open())
+      return -1;
 
-	  const vector<vector<string> > &words = pInstance->words;
+    const vector<vector<vector<string> > > &words = pInstance->words;
 
-	  for (int i = 0; i < words.size(); ++i) {
-	    if (i < words.size() - 1)
-	      m_outf << "history" << endl;
-	    else if(pInstance->confidence < 0.0)
-	      m_outf << pInstance->label << endl;
-	    else
-	      m_outf << pInstance->label << " " << pInstance->confidence << endl;
-	    //for (int j = 0; j < words[i].size(); j++) {
-	    //  m_outf << " " << words[i][j];
-	    //}
-	  }
-	  m_outf << endl;
-	  return 0;
-	}
+    for (int i = 0; i < words.size(); ++i) {
+      for (int j = 0; j < words[i].size(); ++j) {
+        if (pInstance->confidence < 0.0)
+          m_outf << pInstance->label << endl;
+        else
+          m_outf << pInstance->label << " " << pInstance->confidence << endl;
+        //for (int k = 0; j < words[i][j].size(); j++) {
+        //  m_outf << " " << words[i][j][k];
+        //}
+      }
+    }
+    m_outf << endl;
+    return 0;
+  }
 };
 
 #endif

@@ -16,7 +16,7 @@
 #include "Pipe.h"
 #include "Utf.h"
 #include "N3L.h"
-#include "basic/MSparseClassifier.h"
+#include "basic/SparseClassifier.h"
 
 
 using namespace nr;
@@ -35,6 +35,7 @@ public:
   Alphabet m_featAlphabet;
   Alphabet m_wordAlphabet;
   Alphabet m_charAlphabet;
+  Alphabet m_segStylelabelAlphabet;
 
 
 public:

@@ -44,15 +44,17 @@ public:
 
   void copyValuesFrom(const Instance& anInstance) {
     allocate(anInstance.size());
-    static vector<string> curChars;
-    for (int i = 0; i < anInstance.size(); i++) {
-      for (int j = 0; j < anInstance.words[i].size(); j++) {
-        curChars.clear();
-        for (int k = 0; k < anInstance.chars[i][j].size(); k++) {
-          curChars.push_back(anInstance.chars[i][j][k]);
-        }
+    //static vector<string> curChars;
+    int segStyleSize = anInstance.words.size();
+    for (int i = 0; i < segStyleSize; ++i) {
+      int curInstSize = anInstance.words[i].size();
+      for (int j = 0; j < curInstSize; ++j) {
+        //curChars.clear();
+        //for (int k = 0; k < anInstance.chars[i][j].size(); k++) {
+        //curChars.push_back(anInstance.chars[i][j][k]);
+        //}
         words[i].push_back(anInstance.words[i][j]);
-        chars[i].push_back(curChars);
+        //chars[i].push_back(curChars);
       }
     }
     label = anInstance.label;
@@ -76,7 +78,7 @@ public:
 
 public:
   string label;
-  vector<vector<string> > words;
+  vector<vector<vector<string> > > words;
   vector<vector<vector<string> > > chars;
   dtype confidence;
 

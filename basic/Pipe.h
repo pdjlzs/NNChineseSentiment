@@ -109,7 +109,9 @@ public:
     cout << endl;
     cout << "instance num: " << numInstance << endl;
   }
-
+  Alphabet getSegStyleAlphabet(){
+    return m_jstReader->m_segStylelabelAlphabet;
+  }
 protected:
   Reader *m_jstReader;
   Writer *m_jstWriter;
