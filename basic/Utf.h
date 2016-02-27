@@ -43,12 +43,9 @@ unsigned long int getUTF8StringLength(const std::string &s) {
       ++retval;
     } else {
       //std::cerr << "Warning: " << "in utf.h getUTF8StringLength: std::string '" << s << "' not encoded in unicode utf-8" << std::endl;
-      if(s.length()-  idx < 4)
-      {
-        return retval+1;
-      }
-      else
-      {
+      if (s.length() - idx < 4) {
+        return retval + 1;
+      } else {
         idx += 4;
         ++retval;
       }
@@ -56,7 +53,7 @@ unsigned long int getUTF8StringLength(const std::string &s) {
   }
   if (idx != s.length()) {
     //std::cerr << "Warning: " << "in utf.h getUTF8StringLength: std::string '" << s << "' not encoded in unicode utf-8" << std::endl;
-    return retval+1;
+    return retval + 1;
   }
   return retval;
 }
@@ -88,14 +85,11 @@ inline int getCharactersFromUTF8String(const std::string &s, std::vector<string>
       ++len;
       idx += 3;
     } else {
-      if(s.length()-  idx < 4)
-      {
+      if (s.length() - idx < 4) {
         sentence.push_back(s.substr(idx));
         ++len;
         idx = s.length();
-      }
-      else
-      {
+      } else {
         sentence.push_back(s.substr(idx, 4));
         ++len;
         idx += 4;
@@ -104,7 +98,7 @@ inline int getCharactersFromUTF8String(const std::string &s, std::vector<string>
   }
   if (idx != s.length()) {
     //std::cerr << "Warning: " << "in utf.h getCharactersFromUTF8String: std::string '" << s << "' not encoded in utf-8" << std::endl;
-    return len+1;
+    return len + 1;
   }
 
   return len;
@@ -130,12 +124,9 @@ inline std::string getFirstCharFromUTF8String(const std::string &s) {
     return s.substr(0, 3);
   } else {
     //std::cerr << "Warning: " << "in utf.h getFirstCharFromUTF8String: std::string '" << s << "' not encoded in unicode utf-8" << std::endl;
-    if(s.length() < 4)
-    {
+    if (s.length() < 4) {
       return s;
-    }
-    else
-    {
+    } else {
       return s.substr(0, 4);
     }
   }
@@ -165,12 +156,9 @@ inline std::string getLastCharFromUTF8String(const std::string &s) {
       idx += 3;
     } else {
       //std::cerr << "Warning: " << "in utf.h getLastCharFromUTF8String: std::string '" << s << "' not encoded in unicode utf-8" << std::endl;
-      if(s.length()-  idx < 4)
-      {
+      if (s.length() - idx < 4) {
         return s;
-      }
-      else
-      {
+      } else {
         retval = s.substr(idx, 4);
         idx += 4;
       }
@@ -240,8 +228,7 @@ inline std::string wordtype(const std::string &s) {
   return type;
 }
 
-inline std::string normalize_to_lowerwithdigit(const std::string& s)
-{
+inline std::string normalize_to_lowerwithdigit(const std::string& s) {
   std::vector<string> chars;
   getCharactersFromUTF8String(s, chars);
   std::string lowcase = "";
@@ -251,24 +238,18 @@ inline std::string normalize_to_lowerwithdigit(const std::string& s)
     } else if (isdigit(chars[i][0])) {
       lowcase = lowcase + "0";
     } else if (isalpha(chars[i][0])) {
-      if (islower(chars[i][0]))
-      {
+      if (islower(chars[i][0])) {
         lowcase = lowcase + chars[i][0];
-      }
-      else
-      {
-        char temp = chars[i][0] + 'a'-'A';
+      } else {
+        char temp = chars[i][0] + 'a' - 'A';
         lowcase = lowcase + temp;
       }
-    }
-    else
-    {
+    } else {
       lowcase = lowcase + chars[i];
     }
   }
   return lowcase;
 }
-
 
 /*----------------------------------------------------------------
  *
@@ -298,14 +279,11 @@ inline int getCharactersFromString(const std::string &s, std::vector<string>& se
       idx += 3;
     } else {
       //std::cerr << "Warning: " << "in utf.h getCharactersFromUTF8String: std::string '" << s << "' not encoded in unicode utf-8" << std::endl;
-      if(s.length()-  idx < 4)
-      {
+      if (s.length() - idx < 4) {
         sentence.push_back(s.substr(idx));
         ++len;
         idx = s.length();
-      }
-      else
-      {
+      } else {
         sentence.push_back(s.substr(idx, 4));
         ++len;
         idx += 4;
@@ -315,10 +293,16 @@ inline int getCharactersFromString(const std::string &s, std::vector<string>& se
 
   if (idx != s.length()) {
     //std::cerr << "Warning: " << "in utf.h getCharactersFromUTF8String: std::string '" << s << "' not encoded in utf-8" << std::endl;
-    return len+1;
+    return len + 1;
   }
 
   return len;
 }
 
+inline string string2int(const int& a) {
+  ostringstream ss;
+  ss << a;
+  string str = ss.str();
+  return str;
+}
 #endif

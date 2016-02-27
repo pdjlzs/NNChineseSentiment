@@ -8,7 +8,7 @@
 #ifndef SRC_Detector_H_
 #define SRC_Detector_H_
 
-
+#include <set>
 
 #include "Options.h"
 #include "Instance.h"
