@@ -240,7 +240,7 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
         //std::cout << feat << std::endl;
 
         int wordlength = getUTF8StringLength(curr_words[k]);
-        string span = "[#" + string2int(startIndx) + "," + string2int(startIndx + wordlength - 1) + "#]" + curr_words[k] ;
+        string span = "[#" + int2str(startIndx) + "," + int2str(startIndx + wordlength - 1) + "#]" + curr_words[k] ;
         bowSet[i].insert(span);
         startIndx += wordlength;
         //std::cout << span << std::endl;

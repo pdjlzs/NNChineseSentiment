@@ -246,14 +246,14 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
         //std::cout << feat << std::endl;
 
         int wordlength = getUTF8StringLength(curr_words[k]);
-        string span = "[#" + string2int(startIndx) + "," + string2int(startIndx + wordlength - 1) + "#]" + curr_words[k];
+        string span = "[#" + int2str(startIndx) + "," + int2str(startIndx + wordlength - 1) + "#]" + curr_words[k];
         uniBowSet[i].insert(span);
         //std::cout << span << std::endl;
 
         if (k > 0) {
           int prevwordlength = getUTF8StringLength(curr_words[k - 1]);
-          string prespan = "[#" + string2int(prevstartIndx) + "," + string2int(prevstartIndx + prevwordlength - 1) + ",";
-          string Bispan = prespan + string2int(startIndx + wordlength - 1) + "#]" + curr_words[k - 1] + seperateKey + curr_words[k];
+          string prespan = "[#" + int2str(prevstartIndx) + "," + int2str(prevstartIndx + prevwordlength - 1) + ",";
+          string Bispan = prespan + int2str(startIndx + wordlength - 1) + "#]" + curr_words[k - 1] + seperateKey + curr_words[k];
           biBowSet[i].insert(Bispan);
           prevstartIndx += prevwordlength;
           //std::cout << Bispan << std::endl;

@@ -299,7 +299,7 @@ inline int getCharactersFromString(const std::string &s, std::vector<string>& se
   return len;
 }
 
-inline string string2int(const int& a) {
+inline string int2str(const int& a) {
   ostringstream ss;
   ss << a;
   string str = ss.str();
