@@ -231,7 +231,7 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
       int curWordSize = words[i][j].size();
       const vector<string>& curr_words = words[i][j];
       int startIndx = 0;
-      int prevstartIndx = 0;
+      int prevstartIndx = 0 - getUTF8StringLength(nullkey);
       for (int k = 0; k < curWordSize; k++) {
         feat = m_segStylelabelAlphabet.from_id(i) + "F1U=" + curr_words[k];
         features.push_back(feat);
@@ -250,14 +250,14 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
         uniBowSet[i].insert(span);
         //std::cout << span << std::endl;
 
-        if (k > 0) {
-          int prevwordlength = getUTF8StringLength(curr_words[k - 1]);
-          string prespan = "[#" + int2str(prevstartIndx) + "," + int2str(prevstartIndx + prevwordlength - 1) + ",";
-          string Bispan = prespan + int2str(startIndx + wordlength - 1) + "#]" + curr_words[k - 1] + seperateKey + curr_words[k];
-          biBowSet[i].insert(Bispan);
-          prevstartIndx += prevwordlength;
-          //std::cout << Bispan << std::endl;
-        }
+
+        int prevwordlength = getUTF8StringLength(prevword);
+        string prespan = "[#" + int2str(prevstartIndx) + "," + int2str(prevstartIndx + prevwordlength - 1) + ",";
+        string Bispan = prespan + int2str(startIndx + wordlength - 1) + "#]" + prevword + seperateKey + curr_words[k];
+        biBowSet[i].insert(Bispan);
+        prevstartIndx += prevwordlength;
+        //std::cout << Bispan << std::endl;
+
         startIndx += wordlength;
 
       }
@@ -273,7 +273,7 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
           split_bystr(*it, vecInfo, "#]");
           feat = m_segStylelabelAlphabet.from_id(i) + m_segStylelabelAlphabet.from_id(j) + "F1U=" + vecInfo[1];
           features.push_back(feat);
-          std::cout << feat << std::endl;
+          //std::cout << feat << std::endl;
         }
       }
       for (it = biBowSet[i].begin(); it != biBowSet[i].end(); it++) {
@@ -282,7 +282,7 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
           split_bystr(*it, vecInfo, "#]");
           feat = m_segStylelabelAlphabet.from_id(i) + m_segStylelabelAlphabet.from_id(j) + "F2B=" + vecInfo[1];
           features.push_back(feat);
-          std::cout << feat << std::endl;
+          //std::cout << feat << std::endl;
         }
       }
     }
@@ -357,6 +357,7 @@ void Labeler::convert2Example(const Instance* pInstance, Example& exam) {
   if (m_linearfeat > 0) {
     vector<string> linear_features;
     extractLinearFeatures(linear_features, pInstance);
+
     for (int i = 0; i < linear_features.size(); i++) {
       int curFeatId = m_featAlphabet.from_string(linear_features[i]);
       if (curFeatId >= 0)
@@ -390,6 +391,11 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
     const string& wordEmbFile, const string& charEmbFile) {
   if (optionFile != "")
     m_options.load(optionFile);
+
+  else {
+    std::cerr << "No optionFile for found!" << std::endl;
+    return;
+  }
 
   m_options.showOptions();
   m_linearfeat = m_options.linearfeatCat;

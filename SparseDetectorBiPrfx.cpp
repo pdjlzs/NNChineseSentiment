@@ -341,6 +341,11 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
   if (optionFile != "")
     m_options.load(optionFile);
 
+  else {
+    std::cerr << "No optionFile for found!" << std::endl;
+    return;
+  }
+
   m_options.showOptions();
   m_linearfeat = m_options.linearfeatCat;
   if (m_linearfeat <= 0) {
