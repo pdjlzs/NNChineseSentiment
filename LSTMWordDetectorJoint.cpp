@@ -5,7 +5,7 @@
  *      Author: mszhang
  */
 
-#include "LSTMWordDetector.h"
+#include "LSTMWordDetectorJoint.h"
 
 #include "Argument_helper.h"
 
@@ -33,21 +33,21 @@ int Labeler::createAlphabet(const vector<Instance>& vecInsts) {
   for (numInstance = 0; numInstance < vecInsts.size(); numInstance++) {
     const Instance *pInstance = &vecInsts[numInstance];
 
-    const vector<vector<string> > &words = pInstance->words;
-    const vector<vector<vector<string> > > &chars = pInstance->chars;
+    const vector<vector<vector<string> > > &words = pInstance->words;
+    //const vector<vector<vector<string> > > &chars = pInstance->chars;
 
     const string &label = pInstance->label;
     labelId = m_labelAlphabet.from_string(label);
 
-    int curInstSize = words.size();
-    for (int i = 0; i < curInstSize; ++i) {
-      int curWordSize = words[i].size();
-      for (int j = 0; j < curWordSize; j++) {
-        string curword = normalize_to_lowerwithdigit(words[i][j]);
-        word_stat[curword]++;
-        int curWordLength = chars[i][j].size();
-        for (int k = 0; k < curWordLength; k++)
-          char_stat[chars[i][j][k]]++;
+    int segStyleSize = words.size();
+    for (int i = 0; i < segStyleSize; ++i) {
+      int curInstSize = words[i].size();
+      for (int j = 0; j < curInstSize; ++j) {
+        int curWordSize = words[i][j].size();
+        for (int k = 0; k < curWordSize; k++) {
+          string curword = words[i][j][k];
+          word_stat[curword]++;
+        }
       }
     }
 
@@ -132,14 +132,17 @@ int Labeler::addTestWordAlpha(const vector<Instance>& vecInsts) {
   for (numInstance = 0; numInstance < vecInsts.size(); numInstance++) {
     const Instance *pInstance = &vecInsts[numInstance];
 
-    const vector<vector<string> > &words = pInstance->words;
+    const vector<vector<vector<string> > >&words = pInstance->words;
 
-    int curInstSize = words.size();
-    for (int i = 0; i < curInstSize; ++i) {
-      int curWordSize = words[i].size();
-      for (int j = 0; j < curWordSize; j++) {
-        string curword = normalize_to_lowerwithdigit(words[i][j]);
-        word_stat[curword]++;
+    int segStyleSize = words.size();
+    for (int i = 0; i < segStyleSize; ++i) {
+      int curInstSize = words[i].size();
+      for (int j = 0; j < curInstSize; ++j) {
+        int curWordSize = words[i][j].size();
+        for (int k = 0; k < curWordSize; k++) {
+          string curword = words[i][j][k];
+          word_stat[curword]++;
+        }
       }
     }
 
@@ -211,82 +214,98 @@ int Labeler::addTestCharAlpha(const vector<Instance>& vecInsts) {
 
 void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pInstance) {
   features.clear();
-  const vector<vector<string> >& words = pInstance->words;
-  int seq_size = words.size();
-  if (seq_size > 2) {
-    cout << "error input, two or more histories..." << endl;
+  const vector<vector<vector<string> > > &words = pInstance->words;
+  int segStyleSize = words.size();
+  if (segStyleSize > 3) {
+    cout << "error input, for or more segment styles..." << endl;
   }
 
+  vector<set<string> > bowSet;
+  bowSet.resize(segStyleSize);
   string feat = "";
-  const vector<string> lastWords = words[seq_size - 1];
-  int wordnumber = lastWords.size();
-  for (int i = 0; i < wordnumber; i++) {
-    feat = "F1U=" + lastWords[i];
-    features.push_back(feat);
-    string prevword = i - 1 >= 0 ? lastWords[i - 1] : nullkey;
-    feat = "F2B=" + prevword + seperateKey + lastWords[i];
-    features.push_back(feat);
-//    string prev2word = i - 2 >= 0 ? lastWords[i - 2] : nullkey;
-//    feat = "F3T=" + prev2word + seperateKey + prevword + seperateKey + lastWords[i];
-//    features.push_back(feat);
+  for (int i = 0; i < segStyleSize; i++) {
+    int curInstSize = words[i].size();
+    for (int j = 0; j < curInstSize; ++j) {
+      int curWordSize = words[i][j].size();
+      const vector<string>& curr_words = words[i][j];
+      int startIndx = 0;
+      for (int k = 0; k < curWordSize; k++) {
+        feat = m_segStylelabelAlphabet.from_id(i) + "F1U=" + curr_words[k];
+        features.push_back(feat);
+        //std::cout << feat << std::endl;
+        string prevword = k - 1 >= 0 ? curr_words[k - 1] : nullkey;
+        feat = m_segStylelabelAlphabet.from_id(i) + "F2B=" + prevword + seperateKey + curr_words[k];
+        features.push_back(feat);
+        //std::cout << feat << std::endl;
+        string prev2word = k - 2 >= 0 ? curr_words[k - 2] : nullkey;
+        feat = m_segStylelabelAlphabet.from_id(i) + "F3T=" + prev2word + seperateKey + prevword + seperateKey + curr_words[k];
+        features.push_back(feat);
+        //std::cout << feat << std::endl;
+
+        int wordlength = getUTF8StringLength(curr_words[k]);
+        string span = "[#" + int2str(startIndx) + "," + int2str(startIndx + wordlength - 1) + "#]" + curr_words[k];
+        bowSet[i].insert(span);
+        startIndx += wordlength;
+        //std::cout << span << std::endl;
+      }
+    }
   }
 
-  if (m_linearfeat > 1 && seq_size == 2) {
-    vector<string> lastWords = words[seq_size - 2];
-    wordnumber = lastWords.size();
-    for (int i = 0; i < wordnumber; i++) {
-      feat = "F4U=" + lastWords[i];
-      features.push_back(feat);
+  set<string>::iterator it;
+  for (int i = 0; i < segStyleSize; i++) {
+    for (int j = i + 1; j < segStyleSize; j++) {
+      for (it = bowSet[i].begin(); it != bowSet[i].end(); it++) {
+        if (bowSet[j].find(*it) != bowSet[j].end()) {
+          vector<string> vecInfo;
+          split_bystr(*it, vecInfo, "#]");
+          feat = m_segStylelabelAlphabet.from_id(i) + m_segStylelabelAlphabet.from_id(j) + "F1U=" + vecInfo[1];
+          features.push_back(feat);
+          //std::cout << feat << std::endl;
+        }
+      }
     }
   }
 
 }
 
-void Labeler::extractFeature(Feature& feat, const Instance* pInstance, int idx) {
-  feat.clear();
+void Labeler::extractFeature(vector<Feature>& nbestfeat, const Instance* pInstance, int idx) {
+  nbestfeat.clear();
 
-  const vector<vector<string> >& words = pInstance->words;
-  const vector<vector<vector<string> > > &chars = pInstance->chars;
+  const vector<vector<vector<string> > > &words = pInstance->words;
+//const vector<vector<vector<string> > > &chars = pInstance->chars;
 
-  static vector<int> curChars;
+//static vector<int> curChars;
 
   int sentsize = words.size();
 
   if (idx < 0 || idx >= sentsize)
     return;
 
-  int wordnumber = words[idx].size();
+  int curInstSize = words[idx].size();
 
   int unknownWordId = m_wordAlphabet.from_string(unknownkey);
-  int unknownCharId = m_charAlphabet.from_string(unknownkey);
+  //int unknownCharId = m_charAlphabet.from_string(unknownkey);
 
-  for (int i = 0; i < wordnumber; i++) {
-    string curWord = normalize_to_lowerwithdigit(words[idx][i]);
-    int curWordId = m_wordAlphabet.from_string(curWord);
-    if (curWordId >= 0)
-      feat.words.push_back(curWordId);
-    else
-      feat.words.push_back(unknownWordId);
-
-    int wordlength = chars[idx][i].size();
-    curChars.clear();
-    for (int j = 0; j < wordlength; j++) {
-      string curChar = chars[idx][i][j];
-      int curCharId = m_charAlphabet.from_string(curChar);
-      if (curCharId >= 0)
-        curChars.push_back(curCharId);
+  for (int j = 0; j < curInstSize; ++j) {
+    int wordnumber = words[idx][j].size();
+    Feature feat;
+    for (int k = 0; k < wordnumber; k++) {
+      string curWord = words[idx][j][k];
+      int curWordId = m_wordAlphabet.from_string(curWord);
+      if (curWordId >= 0)
+        feat.words.push_back(curWordId);
       else
-        curChars.push_back(unknownCharId);
+        feat.words.push_back(unknownWordId);
     }
-    feat.chars.push_back(curChars);
+    nbestfeat.push_back(feat);
   }
 }
 
 void Labeler::convert2Example(const Instance* pInstance, Example& exam) {
   exam.clear();
   const string &label = pInstance->label;
-  const vector<vector<string> > &words = pInstance->words;
-  const vector<vector<vector<string> > > &chars = pInstance->chars;
+  const vector<vector<vector<string> > > &words = pInstance->words;
+//const vector<vector<vector<string> > > &chars = pInstance->chars;
 
   int numLabels = m_labelAlphabet.size();
   for (int j = 0; j < numLabels; ++j) {
@@ -297,10 +316,11 @@ void Labeler::convert2Example(const Instance* pInstance, Example& exam) {
       exam.m_labels.push_back(0);
   }
 
-  int curInstSize = words.size();
-  for (int i = 0; i < curInstSize; ++i) {
-    Feature feat;
+  int segStyleSize = words.size();
+  for (int i = 0; i < segStyleSize; ++i) {
+    vector<Feature> feat;
     extractFeature(feat, pInstance, i);
+
     exam.m_features.push_back(feat);
   }
   if (m_linearfeat > 0) {
@@ -336,9 +356,14 @@ void Labeler::initialExamples(const vector<Instance>& vecInsts, vector<Example>&
 }
 
 void Labeler::train(const string& trainFile, const string& devFile, const string& testFile, const string& modelFile, const string& optionFile,
-    const string& wordEmbFile, const string& charEmbFile) {
+    const string& ctbEmbFile, const string& pkuEmbFile, const string& msrEmbFile, const string& charEmbFile) {
   if (optionFile != "")
     m_options.load(optionFile);
+
+  else {
+    std::cerr << "No optionFile for found!" << std::endl;
+    return;
+  }
 
   m_options.showOptions();
 
@@ -361,6 +386,7 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
     m_pipe.readInstances(m_options.testFiles[idx], otherInsts[idx], m_options.maxInstance);
   }
 
+  m_segStylelabelAlphabet = m_pipe.getSegStyleAlphabet();
   //std::cout << "Training example number: " << trainInsts.size() << std::endl;
   //std::cout << "Dev example number: " << trainInsts.size() << std::endl;
   //std::cout << "Test example number: " << trainInsts.size() << std::endl;
@@ -385,23 +411,48 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
     cout << "Remain char num: " << m_charAlphabet.size() << endl;
   }
 
-  NRMat<dtype> wordEmb;
-  if (wordEmbFile != "") {
-    readWordEmbeddings(wordEmbFile, wordEmb);
+  NRMat<dtype> ctbEmb;
+  if (ctbEmbFile != "") {
+    readWordEmbeddings(ctbEmbFile, ctbEmb);
   } else {
-    wordEmb.resize(m_wordAlphabet.size(), m_options.wordEmbSize);
-    wordEmb.randu(1000);
+    ctbEmb.resize(m_wordAlphabet.size(), m_options.wordEmbSize);
+    ctbEmb.randu(1000);
+  }
+
+  NRMat<dtype> pkuEmb;
+  if (pkuEmbFile != "") {
+    readWordEmbeddings(pkuEmbFile, pkuEmb);
+  } else {
+    pkuEmb.resize(m_wordAlphabet.size(), m_options.wordEmbSize);
+    pkuEmb.randu(1000);
+  }
+
+  NRMat<dtype> msrEmb;
+  if (pkuEmbFile != "") {
+    readWordEmbeddings(msrEmbFile, msrEmb);
+  } else {
+    msrEmb.resize(m_wordAlphabet.size(), m_options.wordEmbSize);
+    msrEmb.randu(1000);
   }
 
   NRMat<dtype> charEmb;
   if (charEmbFile != "") {
     readWordEmbeddings(charEmbFile, charEmb);
   } else {
-    charEmb.resize(m_charAlphabet.size(), m_options.charEmbSize);
-    charEmb.randu(1001);
+    charEmb.resize(m_wordAlphabet.size(), m_options.wordEmbSize);
+    charEmb.randu(1000);
   }
 
-  m_classifier.init(wordEmb, m_options.wordcontext, m_labelAlphabet.size(), m_options.wordHiddenSize, m_options.hiddenSize);
+  /*NRMat<dtype> charEmb;
+   if (charEmbFile != "") {
+   readWordEmbeddings(charEmbFile, charEmb);
+   } else {
+   charEmb.resize(m_charAlphabet.size(), m_options.charEmbSize);
+   charEmb.randu(1001);
+   }*/
+
+  m_classifier.init(m_segStylelabelAlphabet, ctbEmb, pkuEmb, msrEmb, charEmb, m_options.wordcontext, m_labelAlphabet.size(), m_options.wordHiddenSize,
+      m_options.hiddenSize, m_options.nbest);
   m_classifier.resetRemove(m_options.removePool);
   m_classifier.setDropValue(m_options.dropProb);
   m_classifier.setWordEmbFinetune(m_options.wordEmbFineTune);
@@ -476,7 +527,7 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
         }
         int curUpdateIter = iter * m_options.verboseIter + updateIter;
         cost += m_classifier.process(subExamples, curUpdateIter);
-       //m_classifier.checkgrads(subExamples, curUpdateIter);
+        //m_classifier.checkgrads(subExamples, curUpdateIter);
         eval.overall_label_count += m_classifier._eval.overall_label_count;
         eval.correct_label_count += m_classifier._eval.correct_label_count;
 
@@ -655,7 +706,7 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
   }
 }
 
-dtype Labeler::predict(const vector<int>& linears, const vector<Feature>& features, string& output) {
+dtype Labeler::predict(const vector<int>& linears, const vector<vector<Feature> >& features, string& output) {
   vector<dtype> labelprobs;
   int label = m_classifier.predict(linears, features, labelprobs);
   output = m_labelAlphabet.from_id(label);
@@ -806,7 +857,7 @@ void Labeler::writeModelFile(const string& outputModelFile) {
 
 int main(int argc, char* argv[]) {
   std::string trainFile = "", devFile = "", testFile = "", modelFile = "";
-  std::string wordEmbFile = "", charEmbFile = "", optionFile = "";
+  std::string ctbwordEmbFile = "", pkuwordEmbFile = "", msrwordEmbFile = "", charwordEmbFile = "", charEmbFile = "", optionFile = "";
   std::string outputFile = "";
   bool bTrain = false;
   dsr::Argument_helper ah;
@@ -817,7 +868,11 @@ int main(int argc, char* argv[]) {
   ah.new_named_string("test", "testCorpus", "named_string",
       "testing corpus to train a model or input file to test a model, optional when training and must when testing", testFile);
   ah.new_named_string("model", "modelFile", "named_string", "model file, must when training and testing", modelFile);
-  ah.new_named_string("word", "wordEmbFile", "named_string", "pretrained word embedding file to train a model, optional when training", wordEmbFile);
+  ah.new_named_string("ctbword", "ctbwordEmbFile", "named_string", "pretrained word embedding file to train a model, optional when training", ctbwordEmbFile);
+  ah.new_named_string("pkuword", "pkuwordEmbFile", "named_string", "pretrained word embedding file to train a model, optional when training", pkuwordEmbFile);
+  ah.new_named_string("msrword", "msrwordEmbFile", "named_string", "pretrained word embedding file to train a model, optional when training", msrwordEmbFile);
+  ah.new_named_string("charword", "charwordEmbFile", "named_string", "pretrained word embedding file to train a model, optional when training",
+      charwordEmbFile);
   ah.new_named_string("char", "charEmbFile", "named_string", "pretrained char embedding file to train a model, optional when training", charEmbFile);
   ah.new_named_string("option", "optionFile", "named_string", "option file to train a model, optional when training", optionFile);
   ah.new_named_string("output", "outputFile", "named_string", "output file to test, must when testing", outputFile);
@@ -826,7 +881,7 @@ int main(int argc, char* argv[]) {
 
   Labeler tagger;
   if (bTrain) {
-    tagger.train(trainFile, devFile, testFile, modelFile, optionFile, wordEmbFile, charEmbFile);
+    tagger.train(trainFile, devFile, testFile, modelFile, optionFile, ctbwordEmbFile, pkuwordEmbFile, msrwordEmbFile, charwordEmbFile);
   } else {
     tagger.test(testFile, outputFile, modelFile);
   }

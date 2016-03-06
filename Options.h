@@ -118,6 +118,7 @@ public:
 
   int linearfeatCat;
 
+  int nbest;
 
   Options()
   {
@@ -158,6 +159,8 @@ public:
     removePool = 0;
     removeCharPool = 0;
     linearfeatCat = 0;
+
+    nbest = 1;
   }
 
   virtual ~Options()
@@ -240,6 +243,7 @@ public:
       if (pr.first == "removePool") removePool = atoi(pr.second.c_str());
       if (pr.first == "removeCharPool") removeCharPool = atoi(pr.second.c_str());
       if (pr.first == "linearfeatCat") linearfeatCat = atoi(pr.second.c_str());
+      if (pr.first == "nbest") nbest = atoi(pr.second.c_str());
     }
   }
 
@@ -282,6 +286,7 @@ public:
     std::cout << "removePool = " << removePool << std::endl;
     std::cout << "removeCharPool = " << removeCharPool << std::endl;
     std::cout << "linearfeatCat = " << linearfeatCat << std::endl;
+    std::cout << "nbest = " << nbest << std::endl;
   }
 
   void load(const std::string& infile)

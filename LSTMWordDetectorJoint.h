@@ -8,20 +8,19 @@
 #ifndef SRC_Detector_H_
 #define SRC_Detector_H_
 
-
+#include <set>
 
 #include "Options.h"
 #include "Instance.h"
-#include "Example.h"
+#include "ExampleMultiSeg.h"
 #include "Pipe.h"
 #include "Utf.h"
 #include "N3L.h"
-#include "basic/LSTMCNNWordClassifier.h"
 
+#include "basic/LSTMCNNWordJointClassifier.h"
 
 using namespace nr;
 using namespace std;
-
 
 class Labeler {
 
@@ -35,7 +34,7 @@ public:
   Alphabet m_featAlphabet;
   Alphabet m_wordAlphabet;
   Alphabet m_charAlphabet;
-
+  Alphabet m_segStylelabelAlphabet;
 
 public:
   Options m_options;
@@ -44,13 +43,11 @@ public:
 
   int m_linearfeat;
 
-
 #if USE_CUDA==1
   LSTMCNNWordClassifier<gpu> m_classifier;
 #else
   LSTMCNNWordClassifier<cpu> m_classifier;
 #endif
-
 
 public:
   void readWordEmbeddings(const string& inFile, NRMat<dtype>& wordEmb);
@@ -66,19 +63,19 @@ public:
   int addTestWordAlpha(const vector<Instance>& vecInsts);
   int addTestCharAlpha(const vector<Instance>& vecInsts);
 
-  void extractFeature(Feature& feat, const Instance* pInstance, int idx);
+  void extractFeature(vector<Feature> & feat, const Instance* pInstance, int idx);
   void extractLinearFeatures(vector<string>& features, const Instance* pInstance);
   void convert2Example(const Instance* pInstance, Example& exam);
-  void initialExamples(const vector<Instance>& vecInsts, vector<Example>& vecExams);
+  void initialExamples(const vector<Instance>& vecInsts, vector<Example> & vecExams);
 
 public:
-  void train(const string& trainFile, const string& devFile, const string& testFile, const string& modelFile, const string& optionFile, const string& wordEmbFile, const string& charEmbFile);
-  dtype predict(const vector<int>& linears, const vector<Feature>& features, string& output);
+  void train(const string& trainFile, const string& devFile, const string& testFile, const string& modelFile, const string& optionFile,
+      const string& ctbEmbFile, const string& pkuEmbFile, const string& msrEmbFile, const string& charEmbFile);
+  dtype predict(const vector<int>& linears, const vector<vector<Feature> >& features, string& output);
   void test(const string& testFile, const string& outputFile, const string& modelFile);
 
   void writeModelFile(const string& outputModelFile);
   void loadModelFile(const string& inputModelFile);
-
 
 };
 
