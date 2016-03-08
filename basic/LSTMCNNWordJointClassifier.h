@@ -48,11 +48,11 @@ public:
   int _hiddenSize;
 
   UniLayer<xpu> _tanh_project;
-  UniLayer<xpu> _cnn_project;
   UniLayer<xpu> _olayer_linear;
 
-  LSTM_STD<xpu> _rnn_left;
-  LSTM_STD<xpu> _rnn_right;
+  vector<LSTM_STD<xpu> > _rnn_left;
+  vector<LSTM_STD<xpu> > _rnn_right;
+  vector<UniLayer<xpu> > _cnn_project;
 
   int _labelSize;
 
@@ -83,8 +83,14 @@ public:
     _word_cnn_iSize = _token_representation_size * (2 * _wordcontext + 1);
 
     _segStylelabelAlphabet = segStylAlpbt;
-    for (int i = 0; i < _segStylelabelAlphabet.size(); i++) {
-
+    int seg_style = _segStylelabelAlphabet.size();
+    _rnn_left.resize(seg_style);
+    _rnn_right.resize(seg_style);
+    _cnn_project.resize(seg_style);
+    for (int i = 0; i < seg_style; i++) {
+      _rnn_left[i].initial(_wordHiddenSize, _word_cnn_iSize, true, 40 * i);
+      _rnn_right[i].initial(_wordHiddenSize, _word_cnn_iSize, false, 70 * i);
+      _cnn_project[i].initial(_wordHiddenSize, 2 * _wordHiddenSize, true, 90 * i, 0);
       LookupTable<xpu> words;
       if (segStylAlpbt.from_id(i) == "ctb")
         words.initial(ctbEmb);
@@ -97,10 +103,7 @@ public:
       _seg_words.push_back(words);
 
     }
-    _rnn_left.initial(_wordHiddenSize, _word_cnn_iSize, true, 100);
-    _rnn_right.initial(_wordHiddenSize, _word_cnn_iSize, false, 110);
 
-    _cnn_project.initial(_wordHiddenSize, 2 * _wordHiddenSize, true, 20, 0);
     _tanh_project.initial(_hiddenSize, _poolmanners * _wordHiddenSize * _segStylelabelAlphabet.size() * nbest, true, 50, 0);
     _olayer_linear.initial(_labelSize, hiddenSize, false, 60, 2);
 
@@ -112,14 +115,15 @@ public:
 
   inline void release() {
 
-    for (int i = 0; i < _segStylelabelAlphabet.size(); i++)
+    for (int i = 0; i < _segStylelabelAlphabet.size(); i++) {
       _seg_words[i].release();
+      _rnn_left[i].release();
+      _rnn_right[i].release();
+      _cnn_project[i].release();
+    }
 
-    _cnn_project.release();
     _tanh_project.release();
     _olayer_linear.release();
-    _rnn_left.release();
-    _rnn_right.release();
   }
 
   inline dtype process(const vector<Example>& examples, int iter) {
@@ -355,16 +359,16 @@ public:
 
           windowlized(wordrepresent[i][j], input[i][j], curcontext);
 
-          _rnn_left.ComputeForwardScore(input[i][j], rnn_hidden_left_i[i][j], rnn_hidden_left_o[i][j], rnn_hidden_left_f[i][j], rnn_hidden_left_mc[i][j],
+          _rnn_left[i].ComputeForwardScore(input[i][j], rnn_hidden_left_i[i][j], rnn_hidden_left_o[i][j], rnn_hidden_left_f[i][j], rnn_hidden_left_mc[i][j],
               rnn_hidden_left_c[i][j], rnn_hidden_left_my[i][j], rnn_hidden_left[i][j]);
-          _rnn_right.ComputeForwardScore(input[i][j], rnn_hidden_right_i[i][j], rnn_hidden_right_o[i][j], rnn_hidden_right_f[i][j], rnn_hidden_right_mc[i][j],
-              rnn_hidden_right_c[i][j], rnn_hidden_right_my[i][j], rnn_hidden_right[i][j]);
+          _rnn_right[i].ComputeForwardScore(input[i][j], rnn_hidden_right_i[i][j], rnn_hidden_right_o[i][j], rnn_hidden_right_f[i][j],
+              rnn_hidden_right_mc[i][j], rnn_hidden_right_c[i][j], rnn_hidden_right_my[i][j], rnn_hidden_right[i][j]);
 
           for (int idy = 0; idy < word_num; idy++) {
             concat(rnn_hidden_left[i][j][idy], rnn_hidden_right[i][j][idy], midhidden[i][j][idy]);
           }
 
-          _cnn_project.ComputeForwardScore(midhidden[i][j], hidden[i][j]);
+          _cnn_project[i].ComputeForwardScore(midhidden[i][j], hidden[i][j]);
 
           //word pooling
           if ((_remove > 0 && _remove != 1) || (_remove < 0 && _remove == -1) || _remove == 0) {
@@ -427,16 +431,17 @@ public:
             pool_backward(poolLoss[i][j][2], poolIndex[i][j][2], hiddenLoss[i][j]);
           }
 
-          _cnn_project.ComputeBackwardLoss(midhidden[i][j], hidden[i][j], hiddenLoss[i][j], midhiddenLoss[i][j]);
+          _cnn_project[i].ComputeBackwardLoss(midhidden[i][j], hidden[i][j], hiddenLoss[i][j], midhiddenLoss[i][j]);
 
           for (int idy = 0; idy < word_num; idy++) {
             unconcat(rnn_hidden_leftLoss[i][j][idy], rnn_hidden_rightLoss[i][j][idy], midhiddenLoss[i][j][idy]);
           }
 
-          _rnn_left.ComputeBackwardLoss(input[i][j], rnn_hidden_left_i[i][j], rnn_hidden_left_o[i][j], rnn_hidden_left_f[i][j], rnn_hidden_left_mc[i][j],
+          _rnn_left[i].ComputeBackwardLoss(input[i][j], rnn_hidden_left_i[i][j], rnn_hidden_left_o[i][j], rnn_hidden_left_f[i][j], rnn_hidden_left_mc[i][j],
               rnn_hidden_left_c[i][j], rnn_hidden_left_my[i][j], rnn_hidden_left[i][j], rnn_hidden_leftLoss[i][j], inputLoss[i][j]);
-          _rnn_right.ComputeBackwardLoss(input[i][j], rnn_hidden_right_i[i][j], rnn_hidden_right_o[i][j], rnn_hidden_right_f[i][j], rnn_hidden_right_mc[i][j],
-              rnn_hidden_right_c[i][j], rnn_hidden_right_my[i][j], rnn_hidden_right[i][j], rnn_hidden_rightLoss[i][j], inputLoss[i][j]);
+          _rnn_right[i].ComputeBackwardLoss(input[i][j], rnn_hidden_right_i[i][j], rnn_hidden_right_o[i][j], rnn_hidden_right_f[i][j],
+              rnn_hidden_right_mc[i][j], rnn_hidden_right_c[i][j], rnn_hidden_right_my[i][j], rnn_hidden_right[i][j], rnn_hidden_rightLoss[i][j],
+              inputLoss[i][j]);
 
           windowlized_backward(wordrepresentLoss[i][j], inputLoss[i][j], curcontext);
 
@@ -503,6 +508,7 @@ public:
         FreeSpace(&(nbestmergeLoss[i]));
       }
       FreeSpace(&sentmerge);
+      FreeSpace(&sentmergeLoss);
       FreeSpace(&project);
       FreeSpace(&projectLoss);
       FreeSpace(&output);
@@ -666,7 +672,6 @@ public:
       }
 
       nbestmerge[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * nbest_num), d_zero);
-      nbestmerge[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * nbest_num), d_zero);
     }
 
     sentmerge = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * total_sent_num), d_zero);
@@ -696,16 +701,16 @@ public:
 
         windowlized(wordrepresent[i][j], input[i][j], curcontext);
 
-        _rnn_left.ComputeForwardScore(input[i][j], rnn_hidden_left_i[i][j], rnn_hidden_left_o[i][j], rnn_hidden_left_f[i][j], rnn_hidden_left_mc[i][j],
+        _rnn_left[i].ComputeForwardScore(input[i][j], rnn_hidden_left_i[i][j], rnn_hidden_left_o[i][j], rnn_hidden_left_f[i][j], rnn_hidden_left_mc[i][j],
             rnn_hidden_left_c[i][j], rnn_hidden_left_my[i][j], rnn_hidden_left[i][j]);
-        _rnn_right.ComputeForwardScore(input[i][j], rnn_hidden_right_i[i][j], rnn_hidden_right_o[i][j], rnn_hidden_right_f[i][j], rnn_hidden_right_mc[i][j],
+        _rnn_right[i].ComputeForwardScore(input[i][j], rnn_hidden_right_i[i][j], rnn_hidden_right_o[i][j], rnn_hidden_right_f[i][j], rnn_hidden_right_mc[i][j],
             rnn_hidden_right_c[i][j], rnn_hidden_right_my[i][j], rnn_hidden_right[i][j]);
 
         for (int idy = 0; idy < word_num; idy++) {
           concat(rnn_hidden_left[i][j][idy], rnn_hidden_right[i][j][idy], midhidden[i][j][idy]);
         }
 
-        _cnn_project.ComputeForwardScore(midhidden[i][j], hidden[i][j]);
+        _cnn_project[i].ComputeForwardScore(midhidden[i][j], hidden[i][j]);
 
         //word pooling
         if ((_remove > 0 && _remove != 1) || (_remove < 0 && _remove == -1) || _remove == 0) {
@@ -927,7 +932,6 @@ public:
       }
 
       nbestmerge[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * nbest_num), d_zero);
-      nbestmerge[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * nbest_num), d_zero);
     }
 
     sentmerge = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * total_sent_num), d_zero);
@@ -958,16 +962,16 @@ public:
 
         windowlized(wordrepresent[i][j], input[i][j], curcontext);
 
-        _rnn_left.ComputeForwardScore(input[i][j], rnn_hidden_left_i[i][j], rnn_hidden_left_o[i][j], rnn_hidden_left_f[i][j], rnn_hidden_left_mc[i][j],
+        _rnn_left[i].ComputeForwardScore(input[i][j], rnn_hidden_left_i[i][j], rnn_hidden_left_o[i][j], rnn_hidden_left_f[i][j], rnn_hidden_left_mc[i][j],
             rnn_hidden_left_c[i][j], rnn_hidden_left_my[i][j], rnn_hidden_left[i][j]);
-        _rnn_right.ComputeForwardScore(input[i][j], rnn_hidden_right_i[i][j], rnn_hidden_right_o[i][j], rnn_hidden_right_f[i][j], rnn_hidden_right_mc[i][j],
+        _rnn_right[i].ComputeForwardScore(input[i][j], rnn_hidden_right_i[i][j], rnn_hidden_right_o[i][j], rnn_hidden_right_f[i][j], rnn_hidden_right_mc[i][j],
             rnn_hidden_right_c[i][j], rnn_hidden_right_my[i][j], rnn_hidden_right[i][j]);
 
         for (int idy = 0; idy < word_num; idy++) {
           concat(rnn_hidden_left[i][j][idy], rnn_hidden_right[i][j][idy], midhidden[i][j][idy]);
         }
 
-        _cnn_project.ComputeForwardScore(midhidden[i][j], hidden[i][j]);
+        _cnn_project[i].ComputeForwardScore(midhidden[i][j], hidden[i][j]);
 
         //word pooling
         if ((_remove > 0 && _remove != 1) || (_remove < 0 && _remove == -1) || _remove == 0) {
@@ -1039,14 +1043,14 @@ public:
   }
 
   void updateParams(dtype nnRegular, dtype adaAlpha, dtype adaEps) {
-    _cnn_project.updateAdaGrad(nnRegular, adaAlpha, adaEps);
     _tanh_project.updateAdaGrad(nnRegular, adaAlpha, adaEps);
     _olayer_linear.updateAdaGrad(nnRegular, adaAlpha, adaEps);
-    _rnn_left.updateAdaGrad(nnRegular, adaAlpha, adaEps);
-    _rnn_right.updateAdaGrad(nnRegular, adaAlpha, adaEps);
 
     for (int i = 0; i < _segStylelabelAlphabet.size(); i++) {
       _seg_words[i].updateAdaGrad(nnRegular, adaAlpha, adaEps);
+      _rnn_left[i].updateAdaGrad(nnRegular, adaAlpha, adaEps);
+      _rnn_right[i].updateAdaGrad(nnRegular, adaAlpha, adaEps);
+      _cnn_project[i].updateAdaGrad(nnRegular, adaAlpha, adaEps);
     }
 
   }
@@ -1063,42 +1067,73 @@ public:
     checkgrad(this, examples, _tanh_project._W, _tanh_project._gradW, "_tanh_project._W", iter);
     checkgrad(this, examples, _tanh_project._b, _tanh_project._gradb, "_tanh_project._b", iter);
 
-    checkgrad(this, examples, _cnn_project._W, _cnn_project._gradW, "_cnn_project._W", iter);
-    checkgrad(this, examples, _cnn_project._b, _cnn_project._gradb, "_cnn_project._b", iter);
-
-    checkgrad(this, examples, _rnn_left._lstm_output._W1, _rnn_left._lstm_output._gradW1, "_rnn_left._lstm_output._W1", iter);
-    checkgrad(this, examples, _rnn_left._lstm_output._W2, _rnn_left._lstm_output._gradW2, "_rnn_left._lstm_output._W2", iter);
-    checkgrad(this, examples, _rnn_left._lstm_output._W3, _rnn_left._lstm_output._gradW3, "_rnn_left._lstm_output._W3", iter);
-    checkgrad(this, examples, _rnn_left._lstm_output._b, _rnn_left._lstm_output._gradb, "_rnn_left._lstm_output._b", iter);
-    checkgrad(this, examples, _rnn_left._lstm_input._W1, _rnn_left._lstm_input._gradW1, "_rnn_left._lstm_input._W1", iter);
-    checkgrad(this, examples, _rnn_left._lstm_input._W2, _rnn_left._lstm_input._gradW2, "_rnn_left._lstm_input._W2", iter);
-    checkgrad(this, examples, _rnn_left._lstm_input._W3, _rnn_left._lstm_input._gradW3, "_rnn_left._lstm_input._W3", iter);
-    checkgrad(this, examples, _rnn_left._lstm_input._b, _rnn_left._lstm_input._gradb, "_rnn_left._lstm_input._b", iter);
-    checkgrad(this, examples, _rnn_left._lstm_forget._W1, _rnn_left._lstm_forget._gradW1, "_rnn_left._lstm_forget._W1", iter);
-    checkgrad(this, examples, _rnn_left._lstm_forget._W2, _rnn_left._lstm_forget._gradW2, "_rnn_left._lstm_forget._W2", iter);
-    checkgrad(this, examples, _rnn_left._lstm_forget._W3, _rnn_left._lstm_forget._gradW3, "_rnn_left._lstm_forget._W3", iter);
-    checkgrad(this, examples, _rnn_left._lstm_forget._b, _rnn_left._lstm_forget._gradb, "_rnn_left._lstm_forget._b", iter);
-    checkgrad(this, examples, _rnn_left._lstm_cell._WL, _rnn_left._lstm_cell._gradWL, "_rnn_left._lstm_cell._WL", iter);
-    checkgrad(this, examples, _rnn_left._lstm_cell._WR, _rnn_left._lstm_cell._gradWR, "_rnn_left._lstm_cell._WR", iter);
-    checkgrad(this, examples, _rnn_left._lstm_cell._b, _rnn_left._lstm_cell._gradb, "_rnn_left._lstm_cell._b", iter);
-
-    checkgrad(this, examples, _rnn_right._lstm_output._W1, _rnn_right._lstm_output._gradW1, "_rnn_right._lstm_output._W1", iter);
-    checkgrad(this, examples, _rnn_right._lstm_output._W2, _rnn_right._lstm_output._gradW2, "_rnn_right._lstm_output._W2", iter);
-    checkgrad(this, examples, _rnn_right._lstm_output._W3, _rnn_right._lstm_output._gradW3, "_rnn_right._lstm_output._W3", iter);
-    checkgrad(this, examples, _rnn_right._lstm_output._b, _rnn_right._lstm_output._gradb, "_rnn_right._lstm_output._b", iter);
-    checkgrad(this, examples, _rnn_right._lstm_input._W1, _rnn_right._lstm_input._gradW1, "_rnn_right._lstm_input._W1", iter);
-    checkgrad(this, examples, _rnn_right._lstm_input._W2, _rnn_right._lstm_input._gradW2, "_rnn_right._lstm_input._W2", iter);
-    checkgrad(this, examples, _rnn_right._lstm_input._W3, _rnn_right._lstm_input._gradW3, "_rnn_right._lstm_input._W3", iter);
-    checkgrad(this, examples, _rnn_right._lstm_input._b, _rnn_right._lstm_input._gradb, "_rnn_right._lstm_input._b", iter);
-    checkgrad(this, examples, _rnn_right._lstm_forget._W1, _rnn_right._lstm_forget._gradW1, "_rnn_right._lstm_forget._W1", iter);
-    checkgrad(this, examples, _rnn_right._lstm_forget._W2, _rnn_right._lstm_forget._gradW2, "_rnn_right._lstm_forget._W2", iter);
-    checkgrad(this, examples, _rnn_right._lstm_forget._W3, _rnn_right._lstm_forget._gradW3, "_rnn_right._lstm_forget._W3", iter);
-    checkgrad(this, examples, _rnn_right._lstm_forget._b, _rnn_right._lstm_forget._gradb, "_rnn_right._lstm_forget._b", iter);
-    checkgrad(this, examples, _rnn_right._lstm_cell._WL, _rnn_right._lstm_cell._gradWL, "_rnn_right._lstm_cell._WL", iter);
-    checkgrad(this, examples, _rnn_right._lstm_cell._WR, _rnn_right._lstm_cell._gradWR, "_rnn_right._lstm_cell._WR", iter);
-    checkgrad(this, examples, _rnn_right._lstm_cell._b, _rnn_right._lstm_cell._gradb, "_rnn_right._lstm_cell._b", iter);
-
     for (int i = 0; i < _segStylelabelAlphabet.size(); i++) {
+
+      checkgrad(this, examples, _cnn_project[i]._W, _cnn_project[i]._gradW, _segStylelabelAlphabet.from_id(i) + "_cnn_project._W", iter);
+      checkgrad(this, examples, _cnn_project[i]._b, _cnn_project[i]._gradb, _segStylelabelAlphabet.from_id(i) + "_cnn_project._b", iter);
+
+      checkgrad(this, examples, _rnn_left[i]._lstm_output._W1, _rnn_left[i]._lstm_output._gradW1,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_output._W1", iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_output._W2, _rnn_left[i]._lstm_output._gradW2,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_output._W2", iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_output._W3, _rnn_left[i]._lstm_output._gradW3,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_output._W3", iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_output._b, _rnn_left[i]._lstm_output._gradb, _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_output._b",
+          iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_input._W1, _rnn_left[i]._lstm_input._gradW1, _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_input._W1",
+          iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_input._W2, _rnn_left[i]._lstm_input._gradW2, _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_input._W2",
+          iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_input._W3, _rnn_left[i]._lstm_input._gradW3, _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_input._W3",
+          iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_input._b, _rnn_left[i]._lstm_input._gradb, _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_input._b",
+          iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_forget._W1, _rnn_left[i]._lstm_forget._gradW1,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_forget._W1", iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_forget._W2, _rnn_left[i]._lstm_forget._gradW2,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_forget._W2", iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_forget._W3, _rnn_left[i]._lstm_forget._gradW3,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_forget._W3", iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_forget._b, _rnn_left[i]._lstm_forget._gradb, _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_forget._b",
+          iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_cell._WL, _rnn_left[i]._lstm_cell._gradWL, _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_cell._WL",
+          iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_cell._WR, _rnn_left[i]._lstm_cell._gradWR, _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_cell._WR",
+          iter);
+      checkgrad(this, examples, _rnn_left[i]._lstm_cell._b, _rnn_left[i]._lstm_cell._gradb, _segStylelabelAlphabet.from_id(i) + "_rnn_left._lstm_cell._b",
+          iter);
+
+      checkgrad(this, examples, _rnn_right[i]._lstm_output._W1, _rnn_right[i]._lstm_output._gradW1,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_output._W1", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_output._W2, _rnn_right[i]._lstm_output._gradW2,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_output._W2", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_output._W3, _rnn_right[i]._lstm_output._gradW3,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_output._W3", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_output._b, _rnn_right[i]._lstm_output._gradb,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_output._b", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_input._W1, _rnn_right[i]._lstm_input._gradW1,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_input._W1", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_input._W2, _rnn_right[i]._lstm_input._gradW2,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_input._W2", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_input._W3, _rnn_right[i]._lstm_input._gradW3,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_input._W3", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_input._b, _rnn_right[i]._lstm_input._gradb, _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_input._b",
+          iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_forget._W1, _rnn_right[i]._lstm_forget._gradW1,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_forget._W1", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_forget._W2, _rnn_right[i]._lstm_forget._gradW2,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_forget._W2", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_forget._W3, _rnn_right[i]._lstm_forget._gradW3,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_forget._W3", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_forget._b, _rnn_right[i]._lstm_forget._gradb,
+          _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_forget._b", iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_cell._WL, _rnn_right[i]._lstm_cell._gradWL, _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_cell._WL",
+          iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_cell._WR, _rnn_right[i]._lstm_cell._gradWR, _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_cell._WR",
+          iter);
+      checkgrad(this, examples, _rnn_right[i]._lstm_cell._b, _rnn_right[i]._lstm_cell._gradb, _segStylelabelAlphabet.from_id(i) + "_rnn_right._lstm_cell._b",
+          iter);
+
       checkgrad(this, examples, _seg_words[i]._E, _seg_words[i]._gradE, _segStylelabelAlphabet.from_id(i) + "_words._E", iter, _seg_words[i]._indexers);
     }
 
