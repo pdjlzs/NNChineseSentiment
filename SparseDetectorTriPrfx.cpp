@@ -230,15 +230,15 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
       for (int k = 0; k < curWordSize; k++) {
         feat = m_segStylelabelAlphabet.from_id(i) + "F1U=" + curr_words[k];
         features.push_back(feat);
-        std::cout<<feat<<std::endl;
+        //std::cout<<feat<<std::endl;
         string prevword = k - 1 >= 0 ? curr_words[k - 1] : nullkey;
         feat = m_segStylelabelAlphabet.from_id(i) + "F2B=" + prevword + seperateKey + curr_words[k];
         features.push_back(feat);
-        std::cout<<feat<<std::endl;
+        //std::cout<<feat<<std::endl;
         string prev2word = k - 2 >= 0 ? curr_words[k - 2] : nullkey;
         feat = m_segStylelabelAlphabet.from_id(i) + "F3T=" + prev2word + seperateKey + prevword + seperateKey + curr_words[k];
         features.push_back(feat);
-        std::cout<<feat<<std::endl;
+        //std::cout<<feat<<std::endl;
 
       }
     }
