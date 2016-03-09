@@ -217,8 +217,8 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
   features.clear();
   const vector<vector<vector<string> > > &words = pInstance->words;
   int segStyleSize = words.size();
-  if (segStyleSize > 3) {
-    cout << "error input, for or more segment styles..." << endl;
+  if (segStyleSize > 4) {
+    cout << "error input, five or more segment styles..." << endl;
   }
 
   string feat = "";
