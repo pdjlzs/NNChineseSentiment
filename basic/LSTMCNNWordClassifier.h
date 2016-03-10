@@ -68,7 +68,7 @@ public:
 
 public:
 
-  inline void init(const NRMat<dtype>& wordEmb, int wordcontext, int labelSize, int wordHiddenSize, int hiddenSize, int nbest) {
+  inline void init(const NRMat<dtype>& wordEmb, int wordcontext, int labelSize, int wordHiddenSize, int hiddenSize) {
     _wordcontext = wordcontext;
     _wordSize = wordEmb.nrows();
     _wordDim = wordEmb.ncols();
@@ -87,7 +87,7 @@ public:
 
     _words.initial(wordEmb);
 
-    _tanh_project.initial(_hiddenSize, _poolmanners * _wordHiddenSize  * nbest, true, 50, 0);
+    _tanh_project.initial(_hiddenSize, _poolmanners * _wordHiddenSize, true, 50, 0);
     _olayer_linear.initial(_labelSize, hiddenSize, false, 60, 2);
 
     _eval.reset();
@@ -139,12 +139,12 @@ public:
       vector<vector<Tensor<xpu, 3, dtype> > > midhidden, midhiddenLoss;
 
       vector<vector<Tensor<xpu, 3, dtype> > > hidden, hiddenLoss;
-      vector<vector<vector<Tensor<xpu, 2, dtype> > > > pool, poolLoss;
-      vector<vector<vector<Tensor<xpu, 3, dtype> > > > poolIndex;
 
-      vector<vector<Tensor<xpu, 2, dtype> > > poolmerge, poolmergeLoss;
-      vector<Tensor<xpu, 2, dtype> > nbestmerge, nbestmergeLoss;
+      vector<vector<Tensor<xpu, 2, dtype> > > poolnBest, poolnBestLoss;
+      vector<vector<vector<Tensor<xpu, 3, dtype> > > > poolIndex;
+      vector<Tensor<xpu, 2, dtype> > poolnBestmerge, poolnBestmergeLoss;
       Tensor<xpu, 2, dtype> sentmerge, sentmergeLoss;
+
       Tensor<xpu, 2, dtype> project, projectLoss;
       Tensor<xpu, 2, dtype> output, outputLoss;
 
@@ -182,15 +182,12 @@ public:
 
       hidden.resize(seg_style);
       hiddenLoss.resize(seg_style);
-      pool.resize(seg_style);
-      poolLoss.resize(seg_style);
+      poolnBest.resize(seg_style);
+      poolnBestLoss.resize(seg_style);
       poolIndex.resize(seg_style);
 
-      poolmerge.resize(seg_style);
-      poolmergeLoss.resize(seg_style);
-
-      nbestmerge.resize(seg_style);
-      nbestmergeLoss.resize(seg_style);
+      poolnBestmerge.resize(seg_style);
+      poolnBestmergeLoss.resize(seg_style);
 
       int total_sent_num = 0;
       for (int i = 0; i < seg_style; i++) {
@@ -228,17 +225,13 @@ public:
 
         hidden[i].resize(nbest_num);
         hiddenLoss[i].resize(nbest_num);
-        pool[i].resize(nbest_num);
-        poolLoss[i].resize(nbest_num);
-        poolIndex[i].resize(nbest_num);
+        poolnBest[i].resize(_poolmanners);
+        poolnBestLoss[i].resize(_poolmanners);
 
-        poolmerge[i].resize(nbest_num);
-        poolmergeLoss[i].resize(nbest_num);
+        poolIndex[i].resize(_poolmanners);
 
-        for (int j = 0; j < nbest_num; j++) {
-          pool[i][j].resize(_poolmanners);
-          poolLoss[i][j].resize(_poolmanners);
-          poolIndex[i][j].resize(_poolmanners);
+        for (int j = 0; j < _poolmanners; j++) {
+          poolIndex[i][j].resize(nbest_num);
         }
       }
       //initialize
@@ -284,22 +277,23 @@ public:
           midhidden[i][j] = NewTensor<xpu>(Shape3(word_num, 1, 2 * _wordHiddenSize), d_zero);
           midhiddenLoss[i][j] = NewTensor<xpu>(Shape3(word_num, 1, 2 * _wordHiddenSize), d_zero);
 
-          hidden[i][j] = NewTensor<xpu>(Shape3(word_num, 1, wordHiddenSize), d_zero);
-          hiddenLoss[i][j] = NewTensor<xpu>(Shape3(word_num, 1, wordHiddenSize), d_zero);
+          hidden[i][j] = NewTensor<xpu>(Shape3(word_num, 1, _wordHiddenSize), d_zero);
+          hiddenLoss[i][j] = NewTensor<xpu>(Shape3(word_num, 1, _wordHiddenSize), d_zero);
 
           for (int idm = 0; idm < _poolmanners; idm++) {
-            pool[i][j][idm] = NewTensor<xpu>(Shape2(1, wordHiddenSize), d_zero);
-            poolLoss[i][j][idm] = NewTensor<xpu>(Shape2(1, wordHiddenSize), d_zero);
-            poolIndex[i][j][idm] = NewTensor<xpu>(Shape3(word_num, 1, wordHiddenSize), d_zero);
+            poolIndex[i][idm][j] = NewTensor<xpu>(Shape3(word_num, 1, _wordHiddenSize), d_zero);
           }
-
-          poolmerge[i][j] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize), d_zero);
-          poolmergeLoss[i][j] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize), d_zero);
 
         }
 
-        nbestmerge[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * nbest_num), d_zero);
-        nbestmergeLoss[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * nbest_num), d_zero);
+        for (int idm = 0; idm < _poolmanners; idm++) {
+          poolnBest[i][idm] = NewTensor<xpu>(Shape2(1, _wordHiddenSize), d_zero);
+          poolnBestLoss[i][idm] = NewTensor<xpu>(Shape2(1, _wordHiddenSize), d_zero);
+        }
+
+        poolnBestmerge[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize), d_zero);
+        poolnBestmergeLoss[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize), d_zero);
+
       }
 
       sentmerge = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * total_sent_num), d_zero);
@@ -351,29 +345,85 @@ public:
 
           _cnn_project.ComputeForwardScore(midhidden[i][j], hidden[i][j]);
 
-          //word pooling
-          if ((_remove > 0 && _remove != 1) || (_remove < 0 && _remove == -1) || _remove == 0) {
-            avgpool_forward(hidden[i][j], pool[i][j][0], poolIndex[i][j][0]);
-          }
-          if ((_remove > 0 && _remove != 2) || (_remove < 0 && _remove == -2) || _remove == 0) {
-            maxpool_forward(hidden[i][j], pool[i][j][1], poolIndex[i][j][1]);
-          }
-          if ((_remove > 0 && _remove != 3) || (_remove < 0 && _remove == -3) || _remove == 0) {
-            minpool_forward(hidden[i][j], pool[i][j][2], poolIndex[i][j][2]);
-          }
-
         }
       }
 
-      // sentence
+      //min pool
       for (int i = 0; i < seg_style; i++) {
-        for (int j = 0; j < example.m_features[i].size(); j++) {
-          concat(pool[i][j], poolmerge[i][j]);
+        int minpoolId = 0;
+        poolnBest[i][minpoolId] = 0.0;
+        for (int d = 0; d < _wordHiddenSize; d++) {
+          dtype min = hidden[0][0][0][0][d];
+          int minj = 0, mink = 0;
+          int nbest_num = hidden[i].size();
+          for (int j = 0; j < nbest_num; j++) {
+            int word_num = hidden[i][j].size(0);
+            for (int k = 0; k < word_num; k++) {
+              if (hidden[i][j][k][0][d] < min) {
+                min = hidden[i][j][k][0][d];
+                mink = k;
+                minj = j;
+              }
+            }
+          }
+          poolnBest[i][minpoolId][0][d] = min;
+          poolIndex[i][minpoolId][minj][mink][0][d] = 1;
         }
-        concat(poolmerge[i], nbestmerge[i]);
       }
-      concat(nbestmerge, sentmerge);
+      //maxpool
+      for (int i = 0; i < seg_style; i++) {
+        int maxpoolId = 1;
+        poolnBest[i][maxpoolId] = 0.0;
+        for (int d = 0; d < _wordHiddenSize; d++) {
+          dtype max = hidden[0][0][0][0][d];
+          int maxj = 0, maxk = 0;
+          int nbest_num = hidden[i].size();
+          for (int j = 0; j < nbest_num; j++) {
+            int word_num = hidden[i][j].size(0);
+            for (int k = 0; k < word_num; k++) {
+              if (hidden[i][j][k][0][d] > max) {
+                max = hidden[i][j][k][0][d];
+                maxk = k;
+                maxj = j;
+              }
+            }
+          }
+          poolnBest[i][maxpoolId][0][d] = max;
+          poolIndex[i][maxpoolId][maxj][maxk][0][d] = 1;
+        }
+      }
+      //avgpool
+      for (int i = 0; i < seg_style; i++) {
 
+        int total_num = 0;
+        int nbest_num = hidden[i].size();
+        for (int j = 0; j < nbest_num; j++) {
+          int word_num = hidden[i][j].size(0);
+          total_num += word_num;
+        }
+        int avgpoolID = 2;
+        poolnBest[i][avgpoolID] = 0.0;
+        for (int d = 0; d < _wordHiddenSize; d++) {
+          dtype sum = 0.0;
+          int nbest_num = hidden[i].size();
+          int total_num = 0;
+          for (int j = 0; j < nbest_num; j++) {
+            int word_num = hidden[i][j].size(0);
+            total_num += word_num;
+            for (int k = 0; k < word_num; k++) {
+              sum += hidden[i][j][k][0][d];
+              poolIndex[i][avgpoolID][j][k][0][d] = 1.0 / total_num;
+
+            }
+          }
+          poolnBest[i][avgpoolID][0][d] = sum / total_num;
+        }
+      }
+
+      for (int i = 0; i < seg_style; i++) {
+        concat(poolnBest[i], poolnBestmerge[i]);
+      }
+      concat(poolnBestmerge, sentmerge);
       _tanh_project.ComputeForwardScore(sentmerge, project);
       _olayer_linear.ComputeForwardScore(project, output);
 
@@ -384,11 +434,24 @@ public:
       _olayer_linear.ComputeBackwardLoss(project, output, outputLoss, projectLoss);
       _tanh_project.ComputeBackwardLoss(sentmerge, project, projectLoss, sentmergeLoss);
 
-      unconcat(nbestmergeLoss, sentmergeLoss);
+      unconcat(poolnBestmergeLoss, sentmergeLoss);
       for (int i = 0; i < seg_style; i++) {
-        unconcat(poolmergeLoss[i], nbestmergeLoss[i]);
-        for (int j = 0; j < example.m_features[i].size(); j++) {
-          unconcat(poolLoss[i][j], poolmergeLoss[i][j]);
+        unconcat(poolnBestLoss[i], poolnBestmergeLoss[i]);
+      }
+
+      //word pooling
+      for (int i = 0; i < seg_style; i++) {
+        int nbest_num = hidden[i].size();
+        for (int j = 0; j < nbest_num; j++) {
+          if ((_remove > 0 && _remove != 1) || (_remove < 0 && _remove == -1) || _remove == 0) {
+            pool_backward(poolnBestLoss[i][0], poolIndex[i][0][j], hiddenLoss[i][j]);
+          }
+          if ((_remove > 0 && _remove != 2) || (_remove < 0 && _remove == -2) || _remove == 0) {
+            pool_backward(poolnBestLoss[i][1], poolIndex[i][1][j], hiddenLoss[i][j]);
+          }
+          if ((_remove > 0 && _remove != 3) || (_remove < 0 && _remove == -3) || _remove == 0) {
+            pool_backward(poolnBestLoss[i][2], poolIndex[i][2][j], hiddenLoss[i][j]);
+          }
         }
       }
 
@@ -400,17 +463,6 @@ public:
           int curcontext = _wordcontext;
           const vector<int>& words = feature.words;
           int word_num = words.size();
-
-          //word pooling
-          if ((_remove > 0 && _remove != 1) || (_remove < 0 && _remove == -1) || _remove == 0) {
-            pool_backward(poolLoss[i][j][0], poolIndex[i][j][0], hiddenLoss[i][j]);
-          }
-          if ((_remove > 0 && _remove != 2) || (_remove < 0 && _remove == -2) || _remove == 0) {
-            pool_backward(poolLoss[i][j][1], poolIndex[i][j][1], hiddenLoss[i][j]);
-          }
-          if ((_remove > 0 && _remove != 3) || (_remove < 0 && _remove == -3) || _remove == 0) {
-            pool_backward(poolLoss[i][j][2], poolIndex[i][j][2], hiddenLoss[i][j]);
-          }
 
           _cnn_project.ComputeBackwardLoss(midhidden[i][j], hidden[i][j], hiddenLoss[i][j], midhiddenLoss[i][j]);
 
@@ -475,17 +527,19 @@ public:
 
           FreeSpace(&(midhidden[i][j]));
           FreeSpace(&(midhiddenLoss[i][j]));
+          FreeSpace(&(hidden[i][j]));
+          FreeSpace(&(hiddenLoss[i][j]));
 
-          FreeSpace(&(poolmerge[i][j]));
-          FreeSpace(&(poolmergeLoss[i][j]));
           for (int idm = 0; idm < _poolmanners; idm++) {
-            FreeSpace(&(pool[i][j][idm]));
-            FreeSpace(&(poolLoss[i][j][idm]));
-            FreeSpace(&(poolIndex[i][j][idm]));
+            FreeSpace(&(poolIndex[i][idm][j]));
           }
         }
-        FreeSpace(&(nbestmerge[i]));
-        FreeSpace(&(nbestmergeLoss[i]));
+        for (int idm = 0; idm < _poolmanners; idm++) {
+          FreeSpace(&(poolnBest[i][idm]));
+          FreeSpace(&(poolnBestLoss[i][idm]));
+        }
+        FreeSpace(&(poolnBestmerge[i]));
+        FreeSpace(&(poolnBestmergeLoss[i]));
       }
       FreeSpace(&sentmerge);
       FreeSpace(&sentmergeLoss);
@@ -525,13 +579,12 @@ public:
     vector<vector<Tensor<xpu, 3, dtype> > > rnn_hidden_right;
 
     vector<vector<Tensor<xpu, 3, dtype> > > midhidden;
-
     vector<vector<Tensor<xpu, 3, dtype> > > hidden;
-    vector<vector<vector<Tensor<xpu, 2, dtype> > > > pool;
-    vector<vector<vector<Tensor<xpu, 3, dtype> > > > poolIndex;
 
-    vector<vector<Tensor<xpu, 2, dtype> > > poolmerge;
-    vector<Tensor<xpu, 2, dtype> > nbestmerge;
+    vector<vector<Tensor<xpu, 2, dtype> > > poolnBest;
+    vector<vector<vector<Tensor<xpu, 3, dtype> > > > poolIndex;
+    vector<Tensor<xpu, 2, dtype> > poolnBestmerge;
+
     Tensor<xpu, 2, dtype> sentmerge;
     Tensor<xpu, 2, dtype> project;
     Tensor<xpu, 2, dtype> output;
@@ -562,12 +615,10 @@ public:
     midhidden.resize(seg_style);
 
     hidden.resize(seg_style);
-    pool.resize(seg_style);
+    poolnBest.resize(seg_style);
     poolIndex.resize(seg_style);
 
-    poolmerge.resize(seg_style);
-
-    nbestmerge.resize(seg_style);
+    poolnBestmerge.resize(seg_style);
 
     int total_sent_num = 0;
     for (int i = 0; i < seg_style; i++) {
@@ -597,14 +648,13 @@ public:
       midhidden[i].resize(nbest_num);
 
       hidden[i].resize(nbest_num);
-      pool[i].resize(nbest_num);
-      poolIndex[i].resize(nbest_num);
 
-      poolmerge[i].resize(nbest_num);
+      poolnBest[i].resize(_poolmanners);
 
-      for (int j = 0; j < nbest_num; j++) {
-        pool[i][j].resize(_poolmanners);
-        poolIndex[i][j].resize(_poolmanners);
+      poolIndex[i].resize(_poolmanners);
+
+      for (int j = 0; j < _poolmanners; j++) {
+        poolIndex[i][j].resize(nbest_num);
       }
     }
     //initialize
@@ -643,15 +693,16 @@ public:
         hidden[i][j] = NewTensor<xpu>(Shape3(word_num, 1, wordHiddenSize), d_zero);
 
         for (int idm = 0; idm < _poolmanners; idm++) {
-          pool[i][j][idm] = NewTensor<xpu>(Shape2(1, wordHiddenSize), d_zero);
-          poolIndex[i][j][idm] = NewTensor<xpu>(Shape3(word_num, 1, wordHiddenSize), d_zero);
+          poolIndex[i][idm][j] = NewTensor<xpu>(Shape3(word_num, 1, _wordHiddenSize), d_zero);
         }
-
-        poolmerge[i][j] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize), d_zero);
 
       }
 
-      nbestmerge[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * nbest_num), d_zero);
+      for (int idm = 0; idm < _poolmanners; idm++) {
+        poolnBest[i][idm] = NewTensor<xpu>(Shape2(1, _wordHiddenSize), d_zero);
+      }
+
+      poolnBestmerge[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize), d_zero);
     }
 
     sentmerge = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * total_sent_num), d_zero);
@@ -692,28 +743,84 @@ public:
 
         _cnn_project.ComputeForwardScore(midhidden[i][j], hidden[i][j]);
 
-        //word pooling
-        if ((_remove > 0 && _remove != 1) || (_remove < 0 && _remove == -1) || _remove == 0) {
-          avgpool_forward(hidden[i][j], pool[i][j][0], poolIndex[i][j][0]);
-        }
-        if ((_remove > 0 && _remove != 2) || (_remove < 0 && _remove == -2) || _remove == 0) {
-          maxpool_forward(hidden[i][j], pool[i][j][1], poolIndex[i][j][1]);
-        }
-        if ((_remove > 0 && _remove != 3) || (_remove < 0 && _remove == -3) || _remove == 0) {
-          minpool_forward(hidden[i][j], pool[i][j][2], poolIndex[i][j][2]);
-        }
       }
     }
 
-    // sentence
+    //min pool
     for (int i = 0; i < seg_style; i++) {
-      for (int j = 0; j < features[i].size(); j++) {
-        concat(pool[i][j], poolmerge[i][j]);
+      int minpoolId = 0;
+      poolnBest[i][minpoolId] = 0.0;
+      for (int d = 0; d < _wordHiddenSize; d++) {
+        dtype min = hidden[0][0][0][0][d];
+        int minj = 0, mink = 0;
+        int nbest_num = hidden[i].size();
+        for (int j = 0; j < nbest_num; j++) {
+          int word_num = hidden[i][j].size(0);
+          for (int k = 0; k < word_num; k++) {
+            if (hidden[i][j][k][0][d] < min) {
+              min = hidden[i][j][k][0][d];
+              mink = k;
+              minj = j;
+            }
+          }
+        }
+        poolnBest[i][minpoolId][0][d] = min;
+        poolIndex[i][minpoolId][minj][mink][0][d] = 1;
       }
-      concat(poolmerge[i], nbestmerge[i]);
     }
-    concat(nbestmerge, sentmerge);
+    //maxpool
+    for (int i = 0; i < seg_style; i++) {
+      int maxpoolId = 1;
+      poolnBest[i][maxpoolId] = 0.0;
+      for (int d = 0; d < _wordHiddenSize; d++) {
+        dtype max = hidden[0][0][0][0][d];
+        int maxj = 0, maxk = 0;
+        int nbest_num = hidden[i].size();
+        for (int j = 0; j < nbest_num; j++) {
+          int word_num = hidden[i][j].size(0);
+          for (int k = 0; k < word_num; k++) {
+            if (hidden[i][j][k][0][d] > max) {
+              max = hidden[i][j][k][0][d];
+              maxk = k;
+              maxj = j;
+            }
+          }
+        }
+        poolnBest[i][maxpoolId][0][d] = max;
+        poolIndex[i][maxpoolId][maxj][maxk][0][d] = 1;
+      }
+    }
+    //avgpool
+    for (int i = 0; i < seg_style; i++) {
 
+      int total_num = 0;
+      int nbest_num = hidden[i].size();
+      for (int j = 0; j < nbest_num; j++) {
+        int word_num = hidden[i][j].size(0);
+        total_num += word_num;
+      }
+      int avgpoolID = 2;
+      poolnBest[i][avgpoolID] = 0.0;
+      for (int d = 0; d < _wordHiddenSize; d++) {
+        dtype sum = 0.0;
+        int nbest_num = hidden[i].size();
+        int total_num = 0;
+        for (int j = 0; j < nbest_num; j++) {
+          int word_num = hidden[i][j].size(0);
+          total_num += word_num;
+          for (int k = 0; k < word_num; k++) {
+            sum += hidden[i][j][k][0][d];
+            poolIndex[i][avgpoolID][j][k][0][d] = 1.0 / total_num;
+
+          }
+        }
+        poolnBest[i][avgpoolID][0][d] = sum / total_num;
+      }
+    }
+    for (int i = 0; i < seg_style; i++) {
+      concat(poolnBest[i], poolnBestmerge[i]);
+    }
+    concat(poolnBestmerge, sentmerge);
     _tanh_project.ComputeForwardScore(sentmerge, project);
     _olayer_linear.ComputeForwardScore(project, output);
 
@@ -746,14 +853,15 @@ public:
         FreeSpace(&(rnn_hidden_right[i][j]));
 
         FreeSpace(&(midhidden[i][j]));
+        FreeSpace(&(hidden[i][j]));
 
-        FreeSpace(&(poolmerge[i][j]));
         for (int idm = 0; idm < _poolmanners; idm++) {
-          FreeSpace(&(pool[i][j][idm]));
-          FreeSpace(&(poolIndex[i][j][idm]));
+          FreeSpace(&(poolIndex[i][idm][j]));
         }
       }
-      FreeSpace(&(nbestmerge[i]));
+      for (int idm = 0; idm < _poolmanners; idm++) {
+        FreeSpace(&(poolnBest[i][idm]));
+      }
     }
     FreeSpace(&sentmerge);
     FreeSpace(&project);
@@ -785,13 +893,12 @@ public:
     vector<vector<Tensor<xpu, 3, dtype> > > rnn_hidden_right;
 
     vector<vector<Tensor<xpu, 3, dtype> > > midhidden;
-
     vector<vector<Tensor<xpu, 3, dtype> > > hidden;
-    vector<vector<vector<Tensor<xpu, 2, dtype> > > > pool;
-    vector<vector<vector<Tensor<xpu, 3, dtype> > > > poolIndex;
 
-    vector<vector<Tensor<xpu, 2, dtype> > > poolmerge;
-    vector<Tensor<xpu, 2, dtype> > nbestmerge;
+    vector<vector<Tensor<xpu, 2, dtype> > > poolnBest;
+    vector<vector<vector<Tensor<xpu, 3, dtype> > > > poolIndex;
+    vector<Tensor<xpu, 2, dtype> > poolnBestmerge;
+
     Tensor<xpu, 2, dtype> sentmerge;
     Tensor<xpu, 2, dtype> project;
     Tensor<xpu, 2, dtype> output;
@@ -822,12 +929,10 @@ public:
     midhidden.resize(seg_style);
 
     hidden.resize(seg_style);
-    pool.resize(seg_style);
+    poolnBest.resize(seg_style);
     poolIndex.resize(seg_style);
 
-    poolmerge.resize(seg_style);
-
-    nbestmerge.resize(seg_style);
+    poolnBestmerge.resize(seg_style);
 
     int total_sent_num = 0;
     for (int i = 0; i < seg_style; i++) {
@@ -857,14 +962,13 @@ public:
       midhidden[i].resize(nbest_num);
 
       hidden[i].resize(nbest_num);
-      pool[i].resize(nbest_num);
-      poolIndex[i].resize(nbest_num);
 
-      poolmerge[i].resize(nbest_num);
+      poolnBest[i].resize(_poolmanners);
 
-      for (int j = 0; j < nbest_num; j++) {
-        pool[i][j].resize(_poolmanners);
-        poolIndex[i][j].resize(_poolmanners);
+      poolIndex[i].resize(_poolmanners);
+
+      for (int j = 0; j < _poolmanners; j++) {
+        poolIndex[i][j].resize(nbest_num);
       }
     }
     //initialize
@@ -903,15 +1007,15 @@ public:
         hidden[i][j] = NewTensor<xpu>(Shape3(word_num, 1, wordHiddenSize), d_zero);
 
         for (int idm = 0; idm < _poolmanners; idm++) {
-          pool[i][j][idm] = NewTensor<xpu>(Shape2(1, wordHiddenSize), d_zero);
-          poolIndex[i][j][idm] = NewTensor<xpu>(Shape3(word_num, 1, wordHiddenSize), d_zero);
+          poolIndex[i][idm][j] = NewTensor<xpu>(Shape3(word_num, 1, _wordHiddenSize), d_zero);
         }
-
-        poolmerge[i][j] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize), d_zero);
-
       }
 
-      nbestmerge[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * nbest_num), d_zero);
+      for (int idm = 0; idm < _poolmanners; idm++) {
+        poolnBest[i][idm] = NewTensor<xpu>(Shape2(1, _wordHiddenSize), d_zero);
+      }
+
+      poolnBestmerge[i] = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize), d_zero);
     }
 
     sentmerge = NewTensor<xpu>(Shape2(1, _poolmanners * _wordHiddenSize * total_sent_num), d_zero);
@@ -953,31 +1057,86 @@ public:
 
         _cnn_project.ComputeForwardScore(midhidden[i][j], hidden[i][j]);
 
-        //word pooling
-        if ((_remove > 0 && _remove != 1) || (_remove < 0 && _remove == -1) || _remove == 0) {
-          avgpool_forward(hidden[i][j], pool[i][j][0], poolIndex[i][j][0]);
-        }
-        if ((_remove > 0 && _remove != 2) || (_remove < 0 && _remove == -2) || _remove == 0) {
-          maxpool_forward(hidden[i][j], pool[i][j][1], poolIndex[i][j][1]);
-        }
-        if ((_remove > 0 && _remove != 3) || (_remove < 0 && _remove == -3) || _remove == 0) {
-          minpool_forward(hidden[i][j], pool[i][j][2], poolIndex[i][j][2]);
-        }
       }
     }
 
-    // sentence
+    //min pool
     for (int i = 0; i < seg_style; i++) {
-      for (int j = 0; j < example.m_features[i].size(); j++) {
-        concat(pool[i][j], poolmerge[i][j]);
+      int minpoolId = 0;
+      poolnBest[i][minpoolId] = 0.0;
+      for (int d = 0; d < _wordHiddenSize; d++) {
+        dtype min = hidden[0][0][0][0][d];
+        int minj = 0, mink = 0;
+        int nbest_num = hidden[i].size();
+        for (int j = 0; j < nbest_num; j++) {
+          int word_num = hidden[i][j].size(0);
+          for (int k = 0; k < word_num; k++) {
+            if (hidden[i][j][k][0][d] < min) {
+              min = hidden[i][j][k][0][d];
+              mink = k;
+              minj = j;
+            }
+          }
+        }
+        poolnBest[i][minpoolId][0][d] = min;
+        poolIndex[i][minpoolId][minj][mink][0][d] = 1;
       }
-      concat(poolmerge[i], nbestmerge[i]);
     }
-    concat(nbestmerge, sentmerge);
+    //maxpool
+    for (int i = 0; i < seg_style; i++) {
+      int maxpoolId = 1;
+      poolnBest[i][maxpoolId] = 0.0;
+      for (int d = 0; d < _wordHiddenSize; d++) {
+        dtype max = hidden[0][0][0][0][d];
+        int maxj = 0, maxk = 0;
+        int nbest_num = hidden[i].size();
+        for (int j = 0; j < nbest_num; j++) {
+          int word_num = hidden[i][j].size(0);
+          for (int k = 0; k < word_num; k++) {
+            if (hidden[i][j][k][0][d] > max) {
+              max = hidden[i][j][k][0][d];
+              maxk = k;
+              maxj = j;
+            }
+          }
+        }
+        poolnBest[i][maxpoolId][0][d] = max;
+        poolIndex[i][maxpoolId][maxj][maxk][0][d] = 1;
+      }
+    }
+    //avgpool
+    for (int i = 0; i < seg_style; i++) {
 
+      int total_num = 0;
+      int nbest_num = hidden[i].size();
+      for (int j = 0; j < nbest_num; j++) {
+        int word_num = hidden[i][j].size(0);
+        total_num += word_num;
+      }
+      int avgpoolID = 2;
+      poolnBest[i][avgpoolID] = 0.0;
+      for (int d = 0; d < _wordHiddenSize; d++) {
+        dtype sum = 0.0;
+        int nbest_num = hidden[i].size();
+        int total_num = 0;
+        for (int j = 0; j < nbest_num; j++) {
+          int word_num = hidden[i][j].size(0);
+          total_num += word_num;
+          for (int k = 0; k < word_num; k++) {
+            sum += hidden[i][j][k][0][d];
+            poolIndex[i][avgpoolID][j][k][0][d] = 1.0 / total_num;
+
+          }
+        }
+        poolnBest[i][avgpoolID][0][d] = sum / total_num;
+      }
+    }
+    for (int i = 0; i < seg_style; i++) {
+      concat(poolnBest[i], poolnBestmerge[i]);
+    }
+    concat(poolnBestmerge, sentmerge);
     _tanh_project.ComputeForwardScore(sentmerge, project);
     _olayer_linear.ComputeForwardScore(project, output);
-
     dtype cost = softmax_cost(output, example.m_labels);
 
     //release
@@ -1006,14 +1165,15 @@ public:
         FreeSpace(&(rnn_hidden_right[i][j]));
 
         FreeSpace(&(midhidden[i][j]));
+        FreeSpace(&(hidden[i][j]));
 
-        FreeSpace(&(poolmerge[i][j]));
         for (int idm = 0; idm < _poolmanners; idm++) {
-          FreeSpace(&(pool[i][j][idm]));
-          FreeSpace(&(poolIndex[i][j][idm]));
+          FreeSpace(&(poolIndex[i][idm][j]));
         }
       }
-      FreeSpace(&(nbestmerge[i]));
+      for (int idm = 0; idm < _poolmanners; idm++) {
+        FreeSpace(&(poolnBest[i][idm]));
+      }
     }
     FreeSpace(&sentmerge);
     FreeSpace(&project);

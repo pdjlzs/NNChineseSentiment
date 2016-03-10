@@ -419,9 +419,7 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
     wordEmb.randu(1000);
   }
 
-
-  m_classifier.init(wordEmb, m_options.wordcontext, m_labelAlphabet.size(), m_options.wordHiddenSize,
-      m_options.hiddenSize, m_options.nbest);
+  m_classifier.init(wordEmb, m_options.wordcontext, m_labelAlphabet.size(), m_options.wordHiddenSize, m_options.hiddenSize);
   m_classifier.resetRemove(m_options.removePool);
   m_classifier.setDropValue(m_options.dropProb);
   m_classifier.setWordEmbFinetune(m_options.wordEmbFineTune);
