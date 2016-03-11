@@ -351,15 +351,14 @@ public:
       //min pool
       for (int i = 0; i < seg_style; i++) {
         int minpoolId = 0;
-        poolnBest[i][minpoolId] = 0.0;
         for (int d = 0; d < _wordHiddenSize; d++) {
-          dtype min = hidden[0][0][0][0][d];
-          int minj = 0, mink = 0;
+          dtype min = 0;
+          int minj = -1, mink = -1;
           int nbest_num = hidden[i].size();
           for (int j = 0; j < nbest_num; j++) {
             int word_num = hidden[i][j].size(0);
             for (int k = 0; k < word_num; k++) {
-              if (hidden[i][j][k][0][d] < min) {
+              if (minj < 0 || hidden[i][j][k][0][d] < min) {
                 min = hidden[i][j][k][0][d];
                 mink = k;
                 minj = j;
@@ -373,15 +372,14 @@ public:
       //maxpool
       for (int i = 0; i < seg_style; i++) {
         int maxpoolId = 1;
-        poolnBest[i][maxpoolId] = 0.0;
         for (int d = 0; d < _wordHiddenSize; d++) {
-          dtype max = hidden[0][0][0][0][d];
-          int maxj = 0, maxk = 0;
+          dtype max = 0;
+          int maxj = -1, maxk = -1;
           int nbest_num = hidden[i].size();
           for (int j = 0; j < nbest_num; j++) {
             int word_num = hidden[i][j].size(0);
             for (int k = 0; k < word_num; k++) {
-              if (hidden[i][j][k][0][d] > max) {
+              if (maxj < 0 || hidden[i][j][k][0][d] > max) {
                 max = hidden[i][j][k][0][d];
                 maxk = k;
                 maxj = j;
@@ -401,15 +399,13 @@ public:
           int word_num = hidden[i][j].size(0);
           total_num += word_num;
         }
+
         int avgpoolID = 2;
-        poolnBest[i][avgpoolID] = 0.0;
         for (int d = 0; d < _wordHiddenSize; d++) {
           dtype sum = 0.0;
           int nbest_num = hidden[i].size();
-          int total_num = 0;
           for (int j = 0; j < nbest_num; j++) {
             int word_num = hidden[i][j].size(0);
-            total_num += word_num;
             for (int k = 0; k < word_num; k++) {
               sum += hidden[i][j][k][0][d];
               poolIndex[i][avgpoolID][j][k][0][d] = 1.0 / total_num;
@@ -749,15 +745,14 @@ public:
     //min pool
     for (int i = 0; i < seg_style; i++) {
       int minpoolId = 0;
-      poolnBest[i][minpoolId] = 0.0;
       for (int d = 0; d < _wordHiddenSize; d++) {
-        dtype min = hidden[0][0][0][0][d];
-        int minj = 0, mink = 0;
+        dtype min = 0;
+        int minj = -1, mink = -1;
         int nbest_num = hidden[i].size();
         for (int j = 0; j < nbest_num; j++) {
           int word_num = hidden[i][j].size(0);
           for (int k = 0; k < word_num; k++) {
-            if (hidden[i][j][k][0][d] < min) {
+            if (minj < 0 || hidden[i][j][k][0][d] < min) {
               min = hidden[i][j][k][0][d];
               mink = k;
               minj = j;
@@ -771,15 +766,14 @@ public:
     //maxpool
     for (int i = 0; i < seg_style; i++) {
       int maxpoolId = 1;
-      poolnBest[i][maxpoolId] = 0.0;
       for (int d = 0; d < _wordHiddenSize; d++) {
-        dtype max = hidden[0][0][0][0][d];
-        int maxj = 0, maxk = 0;
+        dtype max = 0;
+        int maxj = -1, maxk = -1;
         int nbest_num = hidden[i].size();
         for (int j = 0; j < nbest_num; j++) {
           int word_num = hidden[i][j].size(0);
           for (int k = 0; k < word_num; k++) {
-            if (hidden[i][j][k][0][d] > max) {
+            if (maxj < 0 || hidden[i][j][k][0][d] > max) {
               max = hidden[i][j][k][0][d];
               maxk = k;
               maxj = j;
@@ -799,15 +793,13 @@ public:
         int word_num = hidden[i][j].size(0);
         total_num += word_num;
       }
+
       int avgpoolID = 2;
-      poolnBest[i][avgpoolID] = 0.0;
       for (int d = 0; d < _wordHiddenSize; d++) {
         dtype sum = 0.0;
         int nbest_num = hidden[i].size();
-        int total_num = 0;
         for (int j = 0; j < nbest_num; j++) {
           int word_num = hidden[i][j].size(0);
-          total_num += word_num;
           for (int k = 0; k < word_num; k++) {
             sum += hidden[i][j][k][0][d];
             poolIndex[i][avgpoolID][j][k][0][d] = 1.0 / total_num;
@@ -817,6 +809,7 @@ public:
         poolnBest[i][avgpoolID][0][d] = sum / total_num;
       }
     }
+
     for (int i = 0; i < seg_style; i++) {
       concat(poolnBest[i], poolnBestmerge[i]);
     }
@@ -862,6 +855,7 @@ public:
       for (int idm = 0; idm < _poolmanners; idm++) {
         FreeSpace(&(poolnBest[i][idm]));
       }
+      FreeSpace(&(poolnBestmerge[i]));
     }
     FreeSpace(&sentmerge);
     FreeSpace(&project);
@@ -1063,15 +1057,14 @@ public:
     //min pool
     for (int i = 0; i < seg_style; i++) {
       int minpoolId = 0;
-      poolnBest[i][minpoolId] = 0.0;
       for (int d = 0; d < _wordHiddenSize; d++) {
-        dtype min = hidden[0][0][0][0][d];
-        int minj = 0, mink = 0;
+        dtype min = 0;
+        int minj = -1, mink = -1;
         int nbest_num = hidden[i].size();
         for (int j = 0; j < nbest_num; j++) {
           int word_num = hidden[i][j].size(0);
           for (int k = 0; k < word_num; k++) {
-            if (hidden[i][j][k][0][d] < min) {
+            if (minj < 0 || hidden[i][j][k][0][d] < min) {
               min = hidden[i][j][k][0][d];
               mink = k;
               minj = j;
@@ -1085,15 +1078,14 @@ public:
     //maxpool
     for (int i = 0; i < seg_style; i++) {
       int maxpoolId = 1;
-      poolnBest[i][maxpoolId] = 0.0;
       for (int d = 0; d < _wordHiddenSize; d++) {
-        dtype max = hidden[0][0][0][0][d];
-        int maxj = 0, maxk = 0;
+        dtype max = 0;
+        int maxj = -1, maxk = -1;
         int nbest_num = hidden[i].size();
         for (int j = 0; j < nbest_num; j++) {
           int word_num = hidden[i][j].size(0);
           for (int k = 0; k < word_num; k++) {
-            if (hidden[i][j][k][0][d] > max) {
+            if (maxj < 0 || hidden[i][j][k][0][d] > max) {
               max = hidden[i][j][k][0][d];
               maxk = k;
               maxj = j;
@@ -1113,15 +1105,13 @@ public:
         int word_num = hidden[i][j].size(0);
         total_num += word_num;
       }
+
       int avgpoolID = 2;
-      poolnBest[i][avgpoolID] = 0.0;
       for (int d = 0; d < _wordHiddenSize; d++) {
         dtype sum = 0.0;
         int nbest_num = hidden[i].size();
-        int total_num = 0;
         for (int j = 0; j < nbest_num; j++) {
           int word_num = hidden[i][j].size(0);
-          total_num += word_num;
           for (int k = 0; k < word_num; k++) {
             sum += hidden[i][j][k][0][d];
             poolIndex[i][avgpoolID][j][k][0][d] = 1.0 / total_num;
@@ -1131,6 +1121,7 @@ public:
         poolnBest[i][avgpoolID][0][d] = sum / total_num;
       }
     }
+
     for (int i = 0; i < seg_style; i++) {
       concat(poolnBest[i], poolnBestmerge[i]);
     }
