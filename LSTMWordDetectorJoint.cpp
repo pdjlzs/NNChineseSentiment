@@ -428,7 +428,7 @@ void Labeler::train(const string& trainFile, const string& devFile, const string
   }
 
   NRMat<dtype> msrEmb;
-  if (pkuEmbFile != "") {
+  if (msrEmbFile != "") {
     readWordEmbeddings(msrEmbFile, msrEmb);
   } else {
     msrEmb.resize(m_wordAlphabet.size(), m_options.wordEmbSize);
