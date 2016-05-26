@@ -267,6 +267,23 @@ void Labeler::extractLinearFeatures(vector<string>& features, const Instance* pI
     }
   }
 
+  for (int i = 0; i < segStyleSize; i++) {
+    for (int j = i + 1; j < segStyleSize; j++) {
+      for (int k = j + 1; k < segStyleSize; k++) {
+
+        for (it = bowSet[i].begin(); it != bowSet[i].end(); it++) {
+          if (bowSet[j].find(*it) != bowSet[j].end() && bowSet[k].find(*it) != bowSet[k].end()) {
+            vector<string> vecInfo;
+            split_bystr(*it, vecInfo, "#]");
+            feat = m_segStylelabelAlphabet.from_id(i) + m_segStylelabelAlphabet.from_id(j) + m_segStylelabelAlphabet.from_id(k)+ "F1U=" + vecInfo[1];
+            features.push_back(feat);
+            //std::cout << feat << std::endl;
+          }
+        }
+      }
+    }
+  }
+
 }
 
 void Labeler::extractFeature(Feature& feat, const Instance* pInstance, int idx) {
