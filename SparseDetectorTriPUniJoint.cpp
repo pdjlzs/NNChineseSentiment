@@ -111,11 +111,15 @@ int Labeler::createAlphabet(const vector<Instance>& vecInsts) {
     cout << "Total feature num: " << feature_stat.size() << endl;
     m_featAlphabet.clear();
 
+    //ofstream fout("feat.out");
+
     for (feat_iter = feature_stat.begin(); feat_iter != feature_stat.end(); feat_iter++) {
+      //fout <<feat_iter->first << " "<<feat_iter->second<< endl;
       if (feat_iter->second > m_options.featCutOff) {
         m_featAlphabet.from_string(feat_iter->first);
       }
     }
+    //fout.close();
     cout << "Remain feature num: " << m_featAlphabet.size() << endl;
     m_featAlphabet.set_fixed_flag(true);
   }
